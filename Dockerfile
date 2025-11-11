@@ -1,4 +1,6 @@
-
+# ==================================
+# Etapa 1: Builder (compila o código)
+# ==================================
 FROM node:20-alpine AS builder
 
 # Instalar dependências do sistema necessárias para Prisma e build
@@ -54,8 +56,10 @@ COPY --from=builder /usr/src/app/dist ./dist
 # Expor porta
 EXPOSE 3000
 
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
   CMD node -e "require('http').get('http://localhost:3000/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
 
 RUN echo '#!/bin/sh' > /start.sh && \
     echo 'echo "🔄 Running database migrations..."' >> /start.sh && \
