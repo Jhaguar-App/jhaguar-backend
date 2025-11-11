@@ -12,14 +12,23 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 
+  const allowedOrigins =
+    process.env.NODE_ENV === 'production'
+      ? [
+          'https://jhaguar.com.br',
+          'https://www.jhaguar.com.br',
+          'jhaguar://',
+          process.env.FRONTEND_URL,
+        ].filter((origin): origin is string => Boolean(origin))
+      : true;
+
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     allowedHeaders: 'Content-Type,Authorization,Accept,Origin,X-Requested-With',
   });
 
-  // Interceptors e filters globais
   app.useGlobalInterceptors(new LoggingInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
 

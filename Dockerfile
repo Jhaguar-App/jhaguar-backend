@@ -1,54 +1,44 @@
-FROM node:20-alpine AS development
 
-# Instalar dependências do sistema para Prisma
+FROM node:20-alpine AS builder
+
 RUN apk add --no-cache openssl openssl-dev
 
-# Criar diretório da aplicação
 WORKDIR /usr/src/app
 
-# Copiar arquivos de dependências
 COPY package*.json ./
+COPY prisma ./prisma/
 
-# Instalar dependências
-RUN npm install
+RUN npm ci
 
-# Copiar arquivos do projeto
-COPY . .
-
-# Gerar cliente Prisma
 RUN npx prisma generate
 
-# Expor porta
-EXPOSE 3000
+COPY . .
 
-# Comando para desenvolvimento
-CMD ["npm", "run", "start:dev"]
+RUN npm run build
 
-# Produção
+
 FROM node:20-alpine AS production
+
+RUN apk add --no-cache openssl
 
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 
 WORKDIR /usr/src/app
 
-# Copiar arquivos de dependências
 COPY package*.json ./
 
-# Instalar apenas dependências de produção
 RUN npm ci --only=production && npm cache clean --force
 
-# Copiar arquivos do projeto
-COPY . .
+COPY prisma ./prisma/
 
-# Gerar cliente Prisma
 RUN npx prisma generate
 
-# Compilar aplicação
-RUN npm run build
+COPY --from=builder /usr/src/app/dist ./dist
 
-# Expor porta
 EXPOSE 3000
 
-# Inicializar aplicação
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
+  CMD node -e "require('http').get('http://localhost:3000/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
 CMD ["node", "dist/main"]
