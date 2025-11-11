@@ -1,6 +1,5 @@
-# ==================================
-# Etapa 1: Builder (compila o código)
-# ==================================
+
+# Build timestamp: 2025-11-11T03:00:00Z - Force rebuild
 FROM node:20-alpine AS builder
 
 # Instalar dependências do sistema necessárias para Prisma e build

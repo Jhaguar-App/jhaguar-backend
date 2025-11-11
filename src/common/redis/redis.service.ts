@@ -7,17 +7,57 @@ export class RedisService {
   private redis: Redis;
 
   constructor() {
-    // Parse REDIS_URL if available, otherwise use individual env vars
     const redisUrl = process.env.REDIS_URL;
     let redisConfig;
 
+    this.logger.log('🔧 Initializing Redis connection...');
+    this.logger.debug(`REDIS_URL exists: ${!!redisUrl}`);
+
     if (redisUrl) {
-      redisConfig = redisUrl;
+      try {
+        this.logger.debug(`Raw REDIS_URL length: ${redisUrl.length} chars`);
+
+        const url = new URL(redisUrl.trim());
+
+        redisConfig = {
+          host: url.hostname,
+          port: parseInt(url.port) || 6379,
+          password: url.password || undefined,
+          username:
+            url.username && url.username !== 'default'
+              ? url.username
+              : undefined,
+          db: 0, // Always use database 0 (NOT from URL path)
+          lazyConnect: false,
+          enableReadyCheck: true,
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times) => {
+            const delay = Math.min(times * 50, 2000);
+            this.logger.debug(
+              `Redis retry attempt ${times}, delay: ${delay}ms`,
+            );
+            return delay;
+          },
+        };
+
+        this.logger.log(
+          `✅ Parsed Redis config: ${url.hostname}:${url.port || 6379} (db: 0)`,
+        );
+      } catch (error) {
+        this.logger.error(`❌ Error parsing REDIS_URL: ${error.message}`);
+        redisConfig = {
+          host: 'localhost',
+          port: 6379,
+          db: 0,
+        };
+      }
     } else {
+      this.logger.warn('⚠️ REDIS_URL not found, using fallback config');
       redisConfig = {
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379'),
         password: process.env.REDIS_PASSWORD || undefined,
+        db: 0,
         lazyConnect: true,
       };
     }
