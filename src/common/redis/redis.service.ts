@@ -17,7 +17,15 @@ export class RedisService {
       try {
         this.logger.debug(`Raw REDIS_URL length: ${redisUrl.length} chars`);
 
-        const url = new URL(redisUrl.trim());
+        // Limpar a URL removendo espaços e caracteres invisíveis
+        const cleanUrl = redisUrl.trim().replace(/[\r\n]/g, '');
+
+        // Verificar se a URL tem um protocolo válido
+        if (!cleanUrl.startsWith('redis://') && !cleanUrl.startsWith('rediss://')) {
+          throw new Error('Redis URL must start with redis:// or rediss://');
+        }
+
+        const url = new URL(cleanUrl);
 
         redisConfig = {
           host: url.hostname,
@@ -28,7 +36,7 @@ export class RedisService {
               ? url.username
               : undefined,
           db: 0,
-          lazyConnect: false,
+          lazyConnect: true, // Mudado para true para não bloquear inicialização
           enableReadyCheck: true,
           maxRetriesPerRequest: 3,
           retryStrategy: (times) => {
@@ -45,10 +53,13 @@ export class RedisService {
         );
       } catch (error) {
         this.logger.error(`❌ Error parsing REDIS_URL: ${error.message}`);
+        this.logger.warn('⚠️  Using fallback Redis config (localhost)');
         redisConfig = {
           host: 'localhost',
           port: 6379,
           db: 0,
+          lazyConnect: true,
+          maxRetriesPerRequest: 1, // Fail fast para fallback
         };
       }
     } else {
@@ -65,11 +76,18 @@ export class RedisService {
     this.redis = new Redis(redisConfig);
 
     this.redis.on('connect', () => {
-      this.logger.log('Connected to Redis');
+      this.logger.log('✅ Connected to Redis successfully');
     });
 
     this.redis.on('error', (error) => {
-      this.logger.error('Redis connection error:', error);
+      // Não logar erros do fallback excessivamente
+      if (!error.message.includes('ECONNREFUSED') || process.env.REDIS_URL) {
+        this.logger.error(`Redis connection error: ${error.message}`);
+      }
+    });
+
+    this.redis.on('ready', () => {
+      this.logger.log('🎉 Redis is ready to accept commands');
     });
   }
 
