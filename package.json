@@ -21,7 +21,10 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "db:check": "node scripts/check-and-migrate.js",
+    "verify:prod": "node scripts/verify-production.js https://api.jhaguar.com",
+    "verify:local": "node scripts/verify-production.js http://localhost:3000"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
