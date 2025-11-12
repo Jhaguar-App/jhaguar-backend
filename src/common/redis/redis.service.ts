@@ -27,7 +27,7 @@ export class RedisService {
             url.username && url.username !== 'default'
               ? url.username
               : undefined,
-          db: 0, // Always use database 0 (NOT from URL path)
+          db: 0,
           lazyConnect: false,
           enableReadyCheck: true,
           maxRetriesPerRequest: 3,
@@ -246,7 +246,7 @@ export class RedisService {
 
   async incrementDriverLocationUpdates(driverId: string): Promise<number> {
     const key = `driver_location_updates:${driverId}`;
-    const ttl = 1; // 1 second window for rate limiting
+    const ttl = 1;
 
     try {
       const count = await this.redis.incr(key);

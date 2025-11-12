@@ -12,12 +12,11 @@ import { ChatService } from './chat.service';
 import { CreateMessageDto, ChatMessageResponseDto } from './dto';
 import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
+import { JwtService } from '@nestjs/jwt';
+import { getWebSocketCorsConfig } from 'src/common/config/cors.config';
 
 @WebSocketGateway({
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
+  cors: getWebSocketCorsConfig(),
   namespace: '/chat',
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -29,61 +28,72 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     { socket: Socket; userId: string; rideId?: string }
   >();
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async handleConnection(socket: Socket) {
     try {
       console.log(`💬 Chat client connected: ${socket.id}`);
 
-      // Autenticação WebSocket
       const token = socket.handshake.auth?.token;
       const rideId = socket.handshake.auth?.rideId;
       const userType = socket.handshake.auth?.userType;
 
       if (!token) {
-        console.error(`💬 [ChatGateway] No token provided for socket ${socket.id}`);
-        socket.emit('chat-error', { message: 'Token de autenticação necessário' });
+        console.error(
+          `💬 [ChatGateway] No token provided for socket ${socket.id}`,
+        );
+        socket.emit('chat-error', {
+          message: 'Token de autenticação necessário',
+        });
         socket.disconnect();
         return;
       }
 
       if (!rideId) {
-        console.error(`💬 [ChatGateway] No rideId provided for socket ${socket.id}`);
+        console.error(
+          `💬 [ChatGateway] No rideId provided for socket ${socket.id}`,
+        );
         socket.emit('chat-error', { message: 'ID da corrida necessário' });
         socket.disconnect();
         return;
       }
 
-      // Validate JWT token (basic validation - WsJwtGuard will do full validation)
       try {
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        const userId = payload.sub;
+        const payload = this.jwtService.verify(token);
+        const userId = payload.sub || payload.id;
 
-        console.log(`💬 [ChatGateway] Authenticated connection: userId=${userId}, rideId=${rideId}, userType=${userType}`);
+        console.log(
+          `💬 [ChatGateway] Authenticated connection: userId=${userId}, rideId=${rideId}, userType=${userType}`,
+        );
 
-        // Store connection with authentication info
         this.activeConnections.set(socket.id, {
           socket,
           userId,
-          rideId
+          rideId,
         });
 
-        // Add user data to socket for guard access
         socket.data = {
           userId,
           rideId,
-          userType: userType || 'PASSENGER'
+          userType: userType || 'PASSENGER',
         };
-
       } catch (authError) {
-        console.error(`💬 [ChatGateway] Invalid token for socket ${socket.id}:`, authError.message);
-        socket.emit('chat-error', { message: 'Token inválido' });
+        console.error(
+          `💬 [ChatGateway] Invalid JWT token for socket ${socket.id}:`,
+          authError.message,
+        );
+        socket.emit('chat-error', { message: 'Token inválido ou expirado' });
         socket.disconnect();
         return;
       }
-
     } catch (error) {
-      console.error(`💬 [ChatGateway] Connection error for socket ${socket.id}:`, error.message);
+      console.error(
+        `💬 [ChatGateway] Connection error for socket ${socket.id}:`,
+        error.message,
+      );
       socket.emit('chat-error', { message: 'Erro de conexão' });
       socket.disconnect();
     }
@@ -106,7 +116,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { rideId: string },
   ) {
     try {
-      // Use authenticated data from socket
       const userId = socket.data?.userId;
       const authenticatedRideId = socket.data?.rideId;
       const requestedRideId = data.rideId;
@@ -115,36 +124,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         throw new Error('Usuário não autenticado');
       }
 
-      // Verify ride ID matches authenticated ride
       if (authenticatedRideId !== requestedRideId) {
-        console.error(`💬 [ChatGateway] RideId mismatch: authenticated=${authenticatedRideId}, requested=${requestedRideId}`);
+        console.error(
+          `💬 [ChatGateway] RideId mismatch: authenticated=${authenticatedRideId}, requested=${requestedRideId}`,
+        );
         throw new Error('ID da corrida não corresponde à autenticação');
       }
 
-      console.log(`💬 [ChatGateway] User ${userId} attempting to join chat for ride ${requestedRideId}`);
+      console.log(
+        `💬 [ChatGateway] User ${userId} attempting to join chat for ride ${requestedRideId}`,
+      );
 
-      // Verificar se o usuário tem permissão para este chat
-      const chatData = await this.chatService.getOrCreateChatByRideId(requestedRideId, userId);
+      const chatData = await this.chatService.getOrCreateChatByRideId(
+        requestedRideId,
+        userId,
+      );
 
-      // Entrar na sala do chat
       const roomName = `ride-${requestedRideId}`;
       socket.join(roomName);
 
-      // Atualizar conexão com rideId confirmado
       const connection = this.activeConnections.get(socket.id);
       if (connection) {
         this.activeConnections.set(socket.id, {
           ...connection,
-          rideId: requestedRideId
+          rideId: requestedRideId,
         });
       }
 
-      console.log(`💬 [ChatGateway] User ${userId} successfully joined chat room ${roomName}`);
+      console.log(
+        `💬 [ChatGateway] User ${userId} successfully joined chat room ${roomName}`,
+      );
 
       socket.emit('joined-chat', {
         rideId: requestedRideId,
         status: 'success',
-        chatId: chatData.id
+        chatId: chatData.id,
       });
     } catch (error) {
       console.error(`💬 [ChatGateway] Error joining chat:`, error.message);
@@ -182,16 +196,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() messageData: Omit<CreateMessageDto, 'senderType'>,
   ) {
     try {
-      // Usar userId do socket autenticado (segurança)
       const userId = socket.data?.userId || (socket as any).user?.sub;
 
       if (!userId) {
         throw new Error('Usuário não autenticado');
       }
 
-      console.log(`💬 [ChatGateway] Sending message from user ${userId} to ride ${messageData.rideId}`);
+      console.log(
+        `💬 [ChatGateway] Sending message from user ${userId} to ride ${messageData.rideId}`,
+      );
 
-      // Inferir senderType automaticamente com base no usuário
       const userRecord = await this.chatService['prisma'].user.findUnique({
         where: { id: userId },
         include: { Driver: true, Passenger: true },
@@ -204,19 +218,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const senderType = userRecord.Driver ? 'DRIVER' : 'PASSENGER';
       console.log(`👤 [ChatGateway] User ${userId} is ${senderType}`);
 
-      // Construir CreateMessageDto completo
       const createMessageDto: CreateMessageDto = {
         ...messageData,
         senderType: senderType as any,
       };
 
-      // Enviar mensagem através do service
-      const message = await this.chatService.sendMessage(createMessageDto, userId);
+      const message = await this.chatService.sendMessage(
+        createMessageDto,
+        userId,
+      );
 
-      // Emitir para todos na sala
       this.emitNewMessage(messageData.rideId, message);
 
-      console.log(`✅ [ChatGateway] Message sent successfully to ride ${messageData.rideId}`);
+      console.log(
+        `✅ [ChatGateway] Message sent successfully to ride ${messageData.rideId}`,
+      );
     } catch (error) {
       console.error('Error sending message:', error);
       socket.emit('chat-error', { message: error.message });
@@ -234,7 +250,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       await this.chatService.markMessagesAsRead(rideId, userId);
 
-      // Emitir evento de leitura
       this.emitMessagesRead(rideId, userId);
     } catch (error) {
       console.error('Error marking messages as read:', error);
@@ -250,7 +265,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { rideId, userId, isTyping } = data;
     const roomName = `ride-${rideId}`;
 
-    // Emitir para todos exceto o remetente
     socket.to(roomName).emit('user-typing', {
       rideId,
       userId,
@@ -259,7 +273,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  // Métodos públicos para emitir eventos externamente
   emitNewMessage(rideId: string, message: ChatMessageResponseDto) {
     const roomName = `ride-${rideId}`;
     this.server.to(roomName).emit('new-message', message);
@@ -278,22 +291,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`💬 Chat deactivated event emitted to room ${roomName}`);
   }
 
-  /**
-   * Fechar chat e desconectar todos os usuários
-   */
   async closeChatRoom(rideId: string) {
     const roomName = `ride-${rideId}`;
 
     console.log(`🔒 [ChatGateway] Fechando chat da corrida ${rideId}`);
 
-    // Notificar todos os participantes
     this.server.to(roomName).emit('chat-closed', {
       rideId,
       message: 'Chat encerrado - corrida finalizada',
       timestamp: new Date(),
     });
 
-    // Desconectar todos da sala
     const sockets = await this.server.in(roomName).fetchSockets();
     sockets.forEach((socket) => {
       socket.leave(roomName);

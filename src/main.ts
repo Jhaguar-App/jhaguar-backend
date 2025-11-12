@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { getHttpCorsConfig } from './common/config/cors.config';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -12,22 +13,7 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 
-  const allowedOrigins =
-    process.env.NODE_ENV === 'production'
-      ? [
-          'https://jhaguar.com.br',
-          'https://www.jhaguar.com.br',
-          'jhaguar://',
-          process.env.FRONTEND_URL,
-        ].filter((origin): origin is string => Boolean(origin))
-      : true;
-
-  app.enableCors({
-    origin: allowedOrigins,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
-    allowedHeaders: 'Content-Type,Authorization,Accept,Origin,X-Requested-With',
-  });
+  app.enableCors(getHttpCorsConfig());
 
   app.useGlobalInterceptors(new LoggingInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());

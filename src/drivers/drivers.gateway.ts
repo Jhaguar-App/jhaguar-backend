@@ -12,14 +12,14 @@ import { LocationUpdateDto } from './dto/location-update.dto';
 import { DriversService } from './drivers.service';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { getWebSocketCorsConfig } from '../common/config/cors.config';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
-  // Remover namespace separado - usar o mesmo namespace do RideGateway
+  cors: getWebSocketCorsConfig(),
 })
 export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
-  private connectedDrivers = new Map<string, string>(); // socketId -> driverId
+  private connectedDrivers = new Map<string, string>();
   private readonly logger = new Logger(DriverGateway.name);
 
   constructor(
@@ -35,14 +35,12 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.connectedDrivers.set(client.id, driverId);
       client.join(`driver:${driverId}`);
 
-      // CORREÇÃO: NÃO forçar online automaticamente - apenas conectar WebSocket
-      // O motorista deve clicar manualmente no botão para ficar online
       try {
         // Apenas registrar conexão, sem alterar status no banco
-        // await this.driversService.updateAvailability(driverId, {
-        //   isOnline: true,
-        //   isAvailable: false,
-        // });
+        await this.driversService.updateAvailability(driverId, {
+          isOnline: true,
+          isAvailable: false,
+        });
         this.logger.log(
           `✅ Driver ${driverId} WebSocket connected (status unchanged)`,
         );
@@ -64,11 +62,10 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.connectedDrivers.delete(client.id);
       client.leave(`driver:${driverId}`);
 
-      // NOVO: Automaticamente marcar motorista como offline no banco
       try {
         await this.driversService.updateAvailability(driverId, {
           isOnline: false,
-          isAvailable: false, // Não disponível quando desconecta
+          isAvailable: false,
         });
         this.logger.log(
           `✅ Driver ${driverId} automatically set to OFFLINE in database`,
@@ -95,21 +92,18 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`Driver ${data.driverId} starting to receive rides`);
 
     try {
-      // Atualizar status para disponível no banco de dados
       await this.driversService.updateAvailability(data.driverId, {
         isOnline: true,
         isAvailable: true,
         currentLocation: data.location,
       });
 
-      // Confirmar para o motorista
       client.emit('driver:availability-updated', {
         isAvailable: true,
         message: 'Agora você está disponível para receber corridas',
         timestamp: new Date(),
       });
 
-      // Broadcast que motorista ficou disponível para sistema de matchmaking
       this.server.emit('driver:status-changed', {
         driverId: data.driverId,
         status: 'available',
@@ -134,20 +128,17 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`Driver ${data.driverId} stopping to receive rides`);
 
     try {
-      // Atualizar status para indisponível no banco de dados
       await this.driversService.updateAvailability(data.driverId, {
-        isOnline: true, // Ainda conectado, mas não disponível
+        isOnline: true,
         isAvailable: false,
       });
 
-      // Confirmar para o motorista
       client.emit('driver:availability-updated', {
         isAvailable: false,
         message: 'Você não está mais disponível para corridas',
         timestamp: new Date(),
       });
 
-      // Broadcast que motorista ficou indisponível
       this.server.emit('driver:status-changed', {
         driverId: data.driverId,
         status: 'unavailable',
@@ -176,7 +167,6 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`Driver going offline: ${data.driverId}`);
     client.leave(`driver:${data.driverId}`);
 
-    // Broadcast que motorista ficou offline
     this.server.emit('driver:status-changed', {
       driverId: data.driverId,
       status: 'offline',
@@ -190,10 +180,8 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: LocationUpdateDto & { driverId: string },
   ) {
     try {
-      // Processar atualização de localização através do service
       await this.driversService.updateLocationWithCache(data.driverId, data);
 
-      // Broadcast localização para outros serviços que possam precisar
       this.server.emit('driver:location-changed', {
         driverId: data.driverId,
         location: {
@@ -231,7 +219,6 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       this.logger.log(`Driver ${data.driverId} accepting ride ${data.rideId}`);
 
-      // Chamar o serviço de corridas para processar a aceitação
       const result = await this.driversService.acceptRideRequest(
         data.driverId,
         data.rideId,
@@ -245,14 +232,12 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       if (result.success) {
-        // Confirmar para o motorista que a ação foi processada
         client.emit('ride:accept-confirmed', {
           rideId: data.rideId,
           status: 'accepted',
           timestamp: new Date(),
         });
 
-        // Emitir para o sistema de corridas que a corrida foi aceita
         this.server.emit('ride:driver-accepted', {
           rideId: data.rideId,
           driverId: data.driverId,
@@ -348,7 +333,6 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit('pong', { timestamp: new Date() });
   }
 
-  // Métodos para emitir eventos para motoristas específicos
   emitNewRideRequest(driverId: string, request: any) {
     this.logger.log(`Emitting new ride request to driver ${driverId}`);
     this.server.to(`driver:${driverId}`).emit('new-ride-request', request);
@@ -376,12 +360,10 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.emit('system:maintenance', { message, timestamp: new Date() });
   }
 
-  // Métodos para broadcast geral
   broadcastToAllDrivers(event: string, data: any) {
     this.server.emit(event, data);
   }
 
-  // Método para verificar se um motorista está conectado
   isDriverConnected(driverId: string): boolean {
     const connectedSocketIds = Array.from(this.connectedDrivers.entries())
       .filter(([_, id]) => id === driverId)
@@ -390,14 +372,12 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return connectedSocketIds.length > 0;
   }
 
-  // Método para obter contagem de motoristas conectados
   getConnectedDriversCount(): number {
     return this.connectedDrivers.size;
   }
 
   private async extractDriverId(client: Socket): Promise<string | null> {
     try {
-      // Extrair token do header de autorização ou query params
       const token =
         client.handshake.auth?.token ||
         client.handshake.query?.token ||
@@ -408,7 +388,6 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return null;
       }
 
-      // Decodificar JWT
       const payload = this.jwtService.verify(token);
       const userId = payload.sub || payload.userId;
 
@@ -417,7 +396,6 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return null;
       }
 
-      // Buscar o driverId a partir do userId
       const driver = await this.driversService.findByUserId(userId);
       if (!driver) {
         this.logger.warn(`No driver found for userId: ${userId}`);

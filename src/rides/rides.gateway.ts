@@ -10,9 +10,10 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { getWebSocketCorsConfig } from '../common/config/cors.config';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: getWebSocketCorsConfig(),
 })
 export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
@@ -273,7 +274,6 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  // 💬 Notificar ativação do chat
   emitChatActivated(rideId: string) {
     this.emitToRide(rideId, 'chat:activated', {
       rideId,
@@ -282,13 +282,14 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`💬 Chat activation notification sent for ride ${rideId}`);
   }
 
-  // 💬 Notificar desativação do chat
   emitChatDeactivated(rideId: string) {
     this.emitToRide(rideId, 'chat:deactivated', {
       rideId,
       message: 'Chat desativado.',
     });
-    this.logger.log(`💬 Chat deactivation notification sent for ride ${rideId}`);
+    this.logger.log(
+      `💬 Chat deactivation notification sent for ride ${rideId}`,
+    );
   }
 
   emitPaymentStatusChanged(
@@ -324,7 +325,9 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     connectedDrivers.forEach(([socketId, userData]) => {
       const isTarget = targetDriverIds.includes(userData.userId);
       this.logger.log(
-        `🚗 Driver conectado: ${userData.userId} (socket: ${socketId}) - ${isTarget ? '✅ TARGET' : '⚠️ NOT TARGET'}`,
+        `🚗 Driver conectado: ${userData.userId} (socket: ${socketId}) - ${
+          isTarget ? '✅ TARGET' : '⚠️ NOT TARGET'
+        }`,
       );
     });
 

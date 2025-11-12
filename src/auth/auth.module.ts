@@ -17,10 +17,29 @@ import { PaymentsModule } from '../payments/payments.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'dev-secret-key',
-        signOptions: { expiresIn: '7d' },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const jwtSecret = configService.get<string>('JWT_SECRET');
+
+        if (process.env.NODE_ENV === 'production' && !jwtSecret) {
+          throw new Error(
+            '🔒 ERRO DE SEGURANÇA: JWT_SECRET não configurado em produção! ' +
+              'Configure a variável de ambiente JWT_SECRET no Railway.',
+          );
+        }
+
+        const secret = jwtSecret || 'dev-secret-key-INSECURE';
+        if (!jwtSecret) {
+          console.warn(
+            '⚠️  AVISO: Usando JWT_SECRET padrão de desenvolvimento. ' +
+              'Configure JWT_SECRET para produção!',
+          );
+        }
+
+        return {
+          secret,
+          signOptions: { expiresIn: '7d' },
+        };
+      },
     }),
   ],
   providers: [AuthService, JwtStrategy],

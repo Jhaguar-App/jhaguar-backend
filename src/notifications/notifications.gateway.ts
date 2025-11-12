@@ -9,9 +9,11 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { getWebSocketCorsConfig } from '../common/config/cors.config';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: getWebSocketCorsConfig(),
   namespace: '/notifications',
 })
 export class NotificationsGateway
@@ -23,6 +25,8 @@ export class NotificationsGateway
     { socketId: string; userId: string; userType: 'driver' | 'passenger' }
   >();
   private readonly logger = new Logger(NotificationsGateway.name);
+
+  constructor(private readonly jwtService: JwtService) {}
 
   handleConnection(client: Socket) {
     const userId = this.extractUserId(client);
@@ -234,17 +238,23 @@ export class NotificationsGateway
 
   private extractUserId(client: Socket): string | null {
     const token =
-      client.handshake.auth?.token || client.handshake.headers?.authorization;
+      client.handshake.auth?.token ||
+      client.handshake.headers?.authorization?.replace('Bearer ', '');
 
     if (!token) {
       this.logger.warn(`No token provided for socket ${client.id}`);
+      client.disconnect();
       return null;
     }
 
     try {
-      return client.handshake.query.userId as string;
+      const payload = this.jwtService.verify(token);
+      return payload.sub || payload.id;
     } catch (error) {
-      this.logger.error(`Error extracting user ID: ${error.message}`);
+      this.logger.error(
+        `Invalid JWT token for socket ${client.id}: ${error.message}`,
+      );
+      client.disconnect();
       return null;
     }
   }
