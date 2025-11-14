@@ -294,6 +294,8 @@ export class AuthService {
         isOnline: true,
         currentLatitude: true,
         currentLongitude: true,
+        acceptsFemaleOnly: true, // ADICIONADO: Para validação de tipos
+        Vehicle: true, // ADICIONADO: Incluir veículo do motorista
       },
     });
 
@@ -315,6 +317,7 @@ export class AuthService {
       driverStatus: driver?.accountStatus || null,
       driverId: driver?.id || null,
       passengerId: passenger?.id || null,
+      vehicle: driver?.Vehicle || null, // ADICIONADO: Veículo na raiz para facilitar acesso
       driverDetails: driver
         ? {
             licenseNumber: driver.licenseNumber,
@@ -326,6 +329,7 @@ export class AuthService {
             isOnline: driver.isOnline,
             currentLatitude: driver.currentLatitude,
             currentLongitude: driver.currentLongitude,
+            acceptsFemaleOnly: driver.acceptsFemaleOnly, // ADICIONADO
           }
         : null,
       passengerDetails: passenger
