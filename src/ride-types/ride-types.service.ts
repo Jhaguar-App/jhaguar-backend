@@ -487,9 +487,10 @@ export class RideTypesService {
       );
     }
 
-    return this.prisma.driverRideType.findMany({
+    const driverRideTypes = await this.prisma.driverRideType.findMany({
       where: { driverId },
-      include: { RideTypeConfig: true,
+      include: {
+        RideTypeConfig: true,
       },
       orderBy: {
         RideTypeConfig: {
@@ -497,6 +498,14 @@ export class RideTypesService {
         },
       },
     });
+
+    return driverRideTypes.map((drt) => ({
+      id: drt.id,
+      driverId: drt.driverId,
+      rideTypeId: drt.rideTypeId,
+      isActive: drt.isActive,
+      rideType: drt.RideTypeConfig,
+    }));
   }
 
   async removeDriverRideType(
