@@ -24,7 +24,9 @@
     "seed": "tsx prisma/seed.ts",
     "db:check": "node scripts/check-and-migrate.js",
     "verify:prod": "node scripts/verify-production.js https://api.jhaguar.com",
-    "verify:local": "node scripts/verify-production.js http://localhost:3000"
+    "verify:local": "node scripts/verify-production.js http://localhost:3000",
+    "check-driver": "tsx scripts/check-driver-ride-types.ts",
+    "fix-driver-types": "tsx scripts/fix-driver-ride-types.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

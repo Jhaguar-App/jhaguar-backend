@@ -180,7 +180,10 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: LocationUpdateDto & { driverId: string },
   ) {
     try {
-      await this.driversService.updateLocationWithCache(data.driverId, data);
+      const result = await this.driversService.updateLocationWithCache(
+        data.driverId,
+        data,
+      );
 
       this.server.emit('driver:location-changed', {
         driverId: data.driverId,
@@ -195,6 +198,19 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
         isAvailable: data.isAvailable,
         timestamp: new Date(),
       });
+
+      if (result.activeRide) {
+        this.server.to(`ride:${result.activeRide.id}`).emit('ride:eta-update', {
+          rideId: result.activeRide.id,
+          driverLocation: {
+            latitude: data.latitude,
+            longitude: data.longitude,
+          },
+          estimatedArrival: result.activeRide.estimatedArrival,
+          distanceKm: result.activeRide.distanceKm,
+          timestamp: new Date(),
+        });
+      }
     } catch (error) {
       this.logger.error(`Error updating driver location: ${error.message}`);
       client.emit('error', {

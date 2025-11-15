@@ -425,7 +425,6 @@ export class DriversService {
       );
     }
 
-    // Rate limiting check via Redis
     const updateCount =
       await this.redisService.incrementDriverLocationUpdates(driverId);
     if (updateCount > 1) {
@@ -434,7 +433,6 @@ export class DriversService {
       );
     }
 
-    // Atualizar no banco de dados
     await this.prisma.driver.update({
       where: { id: driverId },
       data: {
@@ -446,7 +444,6 @@ export class DriversService {
       },
     });
 
-    // Salvar na tabela DriverLocation
     await this.prisma.driverLocation.create({
       data: {
         driverId,
@@ -460,7 +457,6 @@ export class DriversService {
       },
     });
 
-    // Atualizar cache do Redis
     await this.updateLocationCache(driverId, {
       latitude: locationData.latitude,
       longitude: locationData.longitude,
@@ -472,10 +468,77 @@ export class DriversService {
       updatedAt: new Date(),
     });
 
+    const activeRide = await this.prisma.ride.findFirst({
+      where: {
+        driverId,
+        status: {
+          in: [RideStatus.ACCEPTED, RideStatus.IN_PROGRESS],
+        },
+      },
+    });
+
+    if (activeRide) {
+      const targetLat =
+        activeRide.status === RideStatus.IN_PROGRESS
+          ? activeRide.destinationLatitude
+          : activeRide.originLatitude;
+      const targetLng =
+        activeRide.status === RideStatus.IN_PROGRESS
+          ? activeRide.destinationLongitude
+          : activeRide.originLongitude;
+
+      const distanceKm = this.calculateDistance(
+        locationData.latitude,
+        locationData.longitude,
+        targetLat,
+        targetLng,
+      );
+
+      const avgSpeedKmh =
+        locationData.speed && locationData.speed > 0
+          ? locationData.speed * 3.6
+          : 30;
+      const etaMinutes = Math.ceil((distanceKm / avgSpeedKmh) * 60);
+
+      return {
+        success: true,
+        message: 'Localização atualizada com sucesso',
+        activeRide: {
+          id: activeRide.id,
+          status: activeRide.status,
+          estimatedArrival: etaMinutes,
+          distanceKm: parseFloat(distanceKm.toFixed(2)),
+        },
+      };
+    }
+
     return {
       success: true,
       message: 'Localização atualizada com sucesso',
     };
+  }
+
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371;
+    const dLat = this.toRad(lat2 - lat1);
+    const dLon = this.toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRad(lat1)) *
+        Math.cos(this.toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRad(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 
   async getDriverStats(

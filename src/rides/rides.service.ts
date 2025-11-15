@@ -52,8 +52,6 @@ export class RidesService {
     setInterval(() => this.cleanExpiredTokens(), 5 * 60 * 1000);
   }
 
-  // ==================== PREPARAÇÃO E CRIAÇÃO DE CORRIDA ====================
-
   async prepareRideConfirmation(
     userId: string,
     confirmationData: {
@@ -84,8 +82,9 @@ export class RidesService {
 
       if (confirmation.success) {
         // NOVO: Incluir métodos de pagamento disponíveis
-        const paymentMethods =
-          await this.paymentsService.getPaymentMethods(userId);
+        const paymentMethods = await this.paymentsService.getPaymentMethods(
+          userId,
+        );
 
         confirmation.data.paymentMethods = paymentMethods;
         confirmation.data.walletBalance =
@@ -164,9 +163,7 @@ export class RidesService {
               isAvailable: true,
               accountStatus: 'APPROVED',
             },
-            include: { User: true,
-              Vehicle: true,
-            },
+            include: { User: true, Vehicle: true },
           });
 
           if (!selectedDriver) {
@@ -185,19 +182,60 @@ export class RidesService {
           throw new BadRequestException('Origem e destino são obrigatórios');
         }
 
-        // Calcular preço final do sistema
-        const finalPricing = await this.rideTypesService.calculateRidePrice({
-          rideTypeId: createRideDto.rideTypeId,
-          distance: createRideDto.estimatedDistance,
-          duration: createRideDto.estimatedDuration,
-          surgeMultiplier: tokenData?.data?.pricing?.surgeMultiplier || 1.0,
-          isPremiumTime: this.isPremiumTime(),
-        });
+        const submittedPrice = createRideDto.estimatedPrice || 0;
+
+        let finalPricing;
+        if (submittedPrice > 0) {
+          const validationResult =
+            await this.rideTypesService.calculateRidePrice({
+              rideTypeId: createRideDto.rideTypeId,
+              distance: createRideDto.estimatedDistance,
+              duration: createRideDto.estimatedDuration,
+              surgeMultiplier: tokenData?.data?.pricing?.surgeMultiplier || 1.0,
+              isPremiumTime: this.isPremiumTime(),
+            });
+
+          const priceDifference = Math.abs(
+            submittedPrice - validationResult.finalPrice,
+          );
+          const tolerance = submittedPrice * 0.2;
+
+          if (priceDifference <= tolerance) {
+            this.logger.log(
+              `✅ Usando preço enviado pelo cliente: R$ ${submittedPrice.toFixed(
+                2,
+              )} (validação: R$ ${validationResult.finalPrice.toFixed(2)})`,
+            );
+            finalPricing = {
+              ...validationResult,
+              finalPrice: submittedPrice,
+            };
+          } else {
+            this.logger.warn(
+              `⚠️ Divergência de preço excede tolerância. Cliente: R$ ${submittedPrice.toFixed(
+                2,
+              )}, Sistema: R$ ${validationResult.finalPrice.toFixed(2)}`,
+            );
+            finalPricing = validationResult;
+          }
+        } else {
+          finalPricing = await this.rideTypesService.calculateRidePrice({
+            rideTypeId: createRideDto.rideTypeId,
+            distance: createRideDto.estimatedDistance,
+            duration: createRideDto.estimatedDuration,
+            surgeMultiplier: tokenData?.data?.pricing?.surgeMultiplier || 1.0,
+            isPremiumTime: this.isPremiumTime(),
+          });
+        }
 
         // Primeiro, fazer limpeza automática de rides órfãs
-        const cleanupResult = await this.ridesStateService.cleanupOrphanedRides(userId);
+        const cleanupResult = await this.ridesStateService.cleanupOrphanedRides(
+          userId,
+        );
         if (cleanupResult.cleaned > 0) {
-          this.logger.log(`🧹 Auto-cleanup: ${cleanupResult.cleaned} rides órfãs removidas`);
+          this.logger.log(
+            `🧹 Auto-cleanup: ${cleanupResult.cleaned} rides órfãs removidas`,
+          );
         }
 
         // Verificar estado atual do usuário
@@ -205,7 +243,8 @@ export class RidesService {
         if (userState.hasActiveRide) {
           const existingRide = await this.prisma.ride.findUnique({
             where: { id: userState.activeRideId },
-            include: { Passenger: { include: { User: true } },
+            include: {
+              Passenger: { include: { User: true } },
               Driver: { include: { User: true, Vehicle: true } },
               RideTypeConfig: true,
               Payment: true,
@@ -229,19 +268,20 @@ export class RidesService {
                 `✅ Corrida já foi aceita, retornando dados da corrida existente: ${existingRide.id}`,
               );
 
-              // Notificar passageiro via WebSocket que a corrida foi aceita
               if (existingRide?.Driver) {
                 this.rideGateway.emitToRide(existingRide.id, 'ride:accepted', {
                   rideId: existingRide.id,
                   Driver: {
-                    id: existingRide.Driver ?.id,
-                    driverId: existingRide.Driver ?.id,
-                    driverName: `${existingRide.Driver?.User?.firstName || ''} ${existingRide.Driver?.User?.lastName || ''}`,
+                    id: existingRide.Driver?.id,
+                    driverId: existingRide.Driver?.id,
+                    driverName: `${
+                      existingRide.Driver?.User?.firstName || ''
+                    } ${existingRide.Driver?.User?.lastName || ''}`,
                     profileImage: existingRide.Driver?.User?.profileImage,
-                    driverRating: existingRide.Driver ?.averageRating || 5.0,
+                    driverRating: existingRide.Driver?.averageRating || 5.0,
                     vehicle: existingRide.Driver?.Vehicle,
-                    latitude: existingRide.Driver ?.currentLatitude || 0,
-                    longitude: existingRide.Driver ?.currentLongitude || 0,
+                    latitude: existingRide.Driver?.currentLatitude || 0,
+                    longitude: existingRide.Driver?.currentLongitude || 0,
                   },
                   estimatedArrival: 5,
                   finalPrice: existingRide.finalPrice,
@@ -268,26 +308,27 @@ export class RidesService {
                   where: { id: existingRide.id },
                   data: {
                     status: RideStatus.CANCELLED,
-                    cancellationReason: 'Automaticamente cancelada ao solicitar nova corrida',
+                    cancellationReason:
+                      'Automaticamente cancelada ao solicitar nova corrida',
                     cancellationTime: new Date(),
                   },
                 });
 
-                // Notificar via WebSocket sobre cancelamento
                 this.rideGateway.emitToRide(existingRide.id, 'ride:cancelled', {
                   rideId: existingRide.id,
                   reason: 'Nova corrida solicitada',
                   cancelledBy: 'system',
                 });
 
-                this.logger.log(`✅ Corrida ${existingRide.id} cancelada automaticamente`);
-                // Continuar com criação da nova corrida
+                this.logger.log(
+                  `✅ Corrida ${existingRide.id} cancelada automaticamente`,
+                );
               } catch (cancelError) {
-                this.logger.error(`❌ Erro ao cancelar corrida antiga: ${cancelError.message}`);
-                // Se falhar ao cancelar, continuar mesmo assim
+                this.logger.error(
+                  `❌ Erro ao cancelar corrida antiga: ${cancelError.message}`,
+                );
               }
             } else {
-              // Para outros status (ACCEPTED, IN_PROGRESS, etc), não permitir
               throw new BadRequestException({
                 message: 'Você já tem uma corrida em andamento',
                 details: {
@@ -304,19 +345,17 @@ export class RidesService {
           }
         }
 
-        // Garantir preço estimado positivo (fallback se enviado)
         const effectiveEstimated =
           createRideDto.estimatedPrice ?? finalPricing.finalPrice;
         if (!effectiveEstimated || effectiveEstimated <= 0) {
           throw new BadRequestException('Preço estimado inválido');
         }
 
-        // Validação para prevenir divergência de preços
         if (createRideDto.estimatedPrice && createRideDto.estimatedPrice > 0) {
           const priceDifference = Math.abs(
             createRideDto.estimatedPrice - finalPricing.finalPrice,
           );
-          const priceTolerancePercent = 0.05; // 5% de tolerância
+          const priceTolerancePercent = 0.05;
           const maxAllowedDifference =
             finalPricing.finalPrice * priceTolerancePercent;
 
@@ -324,7 +363,6 @@ export class RidesService {
             this.logger.warn(
               `Price divergence detected: estimated=${createRideDto.estimatedPrice}, calculated=${finalPricing.finalPrice}, difference=${priceDifference}`,
             );
-            // Use sempre o preço calculado pelo sistema para garantir consistência
             this.logger.log(
               `Using system-calculated price: ${finalPricing.finalPrice}`,
             );
@@ -365,11 +403,13 @@ export class RidesService {
 
             acceptTime: null,
           },
-          include: { Passenger: {
+          include: {
+            Passenger: {
               include: { User: { include: { UserWallet: true } } },
             },
             Driver: {
-              include: { User: { include: { UserWallet: true } },
+              include: {
+                User: { include: { UserWallet: true } },
                 Vehicle: true,
               },
             },
@@ -417,10 +457,12 @@ export class RidesService {
         }
 
         // NOVO: Incluir informações de pagamento na resposta
-        const paymentMethods =
-          await this.paymentsService.getPaymentMethods(userId);
-        const walletBalance =
-          await this.paymentsService.getWalletBalance(userId);
+        const paymentMethods = await this.paymentsService.getPaymentMethods(
+          userId,
+        );
+        const walletBalance = await this.paymentsService.getWalletBalance(
+          userId,
+        );
 
         return {
           success: true,
@@ -463,7 +505,8 @@ export class RidesService {
         id: rideId,
         OR: [{ Passenger: { userId } }, { Driver: { userId } }],
       },
-      include: { Passenger: { include: { User: true } },
+      include: {
+        Passenger: { include: { User: true } },
         Driver: { include: { User: true, Vehicle: true } },
         RideTypeConfig: true,
       },
@@ -489,7 +532,8 @@ export class RidesService {
           averageRating: ride.Passenger.averageRating,
           totalRides: ride.Passenger.totalRides,
         },
-        driver: ride.Driver ? {
+        driver: ride.Driver
+          ? {
               id: ride.Driver.id,
               user: {
                 firstName: ride.Driver.User.firstName,
@@ -635,7 +679,9 @@ export class RidesService {
         rideId,
         driverId:
           ride.driverId ||
-          (await this.prisma.driver.findFirst({ where: { userId } }))?.id ||
+          (
+            await this.prisma.driver.findFirst({ where: { userId } })
+          )?.id ||
           userId,
         previousStatus: ride.status,
         newStatus: 'REPORTED',
@@ -659,7 +705,8 @@ export class RidesService {
         id: rideId,
         OR: [{ Passenger: { userId } }, { Driver: { userId } }],
       },
-      include: { Passenger: { include: { User: true } },
+      include: {
+        Passenger: { include: { User: true } },
         Driver: { include: { User: true } },
       },
     });
@@ -670,7 +717,9 @@ export class RidesService {
         rideId,
         driverId:
           ride.driverId ||
-          (await this.prisma.driver.findFirst({ where: { userId } }))?.id ||
+          (
+            await this.prisma.driver.findFirst({ where: { userId } })
+          )?.id ||
           userId,
         previousStatus: ride.status,
         newStatus: 'MESSAGE',
@@ -702,7 +751,8 @@ export class RidesService {
           driverId,
           status: RideStatus.IN_PROGRESS,
         },
-        include: { Payment: true,
+        include: {
+          Payment: true,
           Passenger: { include: { User: { include: { UserWallet: true } } } },
           Driver: { include: { User: { include: { UserWallet: true } } } },
         },
@@ -771,7 +821,9 @@ export class RidesService {
         (!ride.Driver || !ride.finalPrice)
       ) {
         this.logger.warn(
-          `⚠️ Cannot process automatic wallet payment for ride ${ride.id}: missing driver (${!!ride.Driver}) or finalPrice (${!!ride.finalPrice})`,
+          `⚠️ Cannot process automatic wallet payment for ride ${
+            ride.id
+          }: missing driver (${!!ride.Driver}) or finalPrice (${!!ride.finalPrice})`,
         );
       }
 
@@ -916,11 +968,13 @@ export class RidesService {
       const [rides, total] = await Promise.all([
         this.prisma.ride.findMany({
           where: whereClause,
-          include: { Passenger: {
+          include: {
+            Passenger: {
               include: { User: { include: { UserWallet: true } } },
             },
             Driver: {
-              include: { User: { include: { UserWallet: true } },
+              include: {
+                User: { include: { UserWallet: true } },
                 Vehicle: true,
               },
             },
@@ -977,7 +1031,8 @@ export class RidesService {
     try {
       const ride = await this.prisma.ride.findUnique({
         where: { id: rideId },
-        include: { Passenger: { include: { User: true } },
+        include: {
+          Passenger: { include: { User: true } },
           Driver: { include: { User: true } },
           RideTypeConfig: true,
           Payment: true, // NOVO: Incluir dados de pagamento
@@ -1031,7 +1086,8 @@ export class RidesService {
           cancellationTime: new Date(),
           cancellationFee,
         },
-        include: { Passenger: { include: { User: true } },
+        include: {
+          Passenger: { include: { User: true } },
           Driver: { include: { User: true } },
           RideTypeConfig: true,
           Payment: true,
@@ -1058,15 +1114,22 @@ export class RidesService {
         await this.processCancellationFee(updatedRide, cancellationFee);
       }
 
-      // 💬 FECHAR CHAT quando corrida for cancelada
       try {
         await this.chatService.closeChatRoom(rideId);
         await this.chatGateway.closeChatRoom(rideId);
         this.logger.log(`💬 Chat fechado para corrida cancelada: ${rideId}`);
       } catch (chatError) {
         this.logger.warn(`⚠️ Falha ao fechar chat: ${rideId}`, chatError);
-        // Não falhar o cancelamento por erro no chat
       }
+
+      this.rideGateway.emitToRide(rideId, 'ride:cancelled', {
+        rideId: updatedRide.id,
+        status: RideStatus.CANCELLED,
+        reason,
+        cancelledBy: isDriver ? 'driver' : 'passenger',
+        cancellationFee,
+        timestamp: new Date(),
+      });
 
       return {
         success: true,
@@ -1121,10 +1184,11 @@ export class RidesService {
         basePrice: ride.basePrice,
         finalPrice: ride.finalPrice,
         currency: ride.currency,
-        paymentStatus: ride.Payment ?.status,
+        paymentStatus: ride.Payment?.status,
       },
       // NOVO: Informações detalhadas de pagamento
-      payment: ride.Payment ? {
+      payment: ride.Payment
+        ? {
             method: ride.Payment.method,
             status: ride.Payment.status,
             confirmedByDriver: ride.Payment.confirmedByDriver,
@@ -1133,7 +1197,8 @@ export class RidesService {
             requiresAction: this.getPaymentRequiredAction(ride),
           }
         : null,
-      driver: ride.Driver ? {
+      driver: ride.Driver
+        ? {
             id: ride.Driver.id,
             name: `${ride.Driver.User.firstName} ${ride.Driver.User.lastName}`,
             rating: ride.Driver.averageRating,
@@ -1367,7 +1432,10 @@ export class RidesService {
         this.logger.warn(
           `Price inconsistency detected for rideType ${rideTypeId}: ` +
             `provided=${providedPrice}, canonical=${priceCalculation.finalPrice}, ` +
-            `difference=${priceDifference} (${((priceDifference / priceCalculation.finalPrice) * 100).toFixed(2)}%)`,
+            `difference=${priceDifference} (${(
+              (priceDifference / priceCalculation.finalPrice) *
+              100
+            ).toFixed(2)}%)`,
         );
       }
     }
@@ -1436,8 +1504,10 @@ export class RidesService {
           status: RideStatus.REQUESTED, // Corridas que ainda não foram aceitas
           driverId: null, // Ainda não foram atribuídas a um motorista
         },
-        include: { Passenger: {
-            include: { User: {
+        include: {
+          Passenger: {
+            include: {
+              User: {
                 select: {
                   id: true,
                   firstName: true,
@@ -1486,7 +1556,8 @@ export class RidesService {
     try {
       const ride = await this.prisma.ride.findUnique({
         where: { id: rideId },
-        include: { Passenger: { include: { User: true } },
+        include: {
+          Passenger: { include: { User: true } },
           Driver: { include: { User: true } },
         },
       });
@@ -1525,11 +1596,12 @@ export class RidesService {
         where: { id: rideId },
         data: {
           driverId,
-          vehicleId: driver.Vehicle ?.id,
+          vehicleId: driver.Vehicle?.id,
           status: RideStatus.ACCEPTED,
           acceptTime: new Date(),
         },
-        include: { Passenger: { include: { User: true } },
+        include: {
+          Passenger: { include: { User: true } },
           Driver: { include: { User: true, Vehicle: true } },
         },
       });
@@ -1582,9 +1654,11 @@ export class RidesService {
           this.rideGateway.emitRideAccepted(
             rideId,
             {
-              driverId: updatedRide.Driver ?.id,
-              driverName: `${updatedRide.Driver?.User?.firstName || ''} ${updatedRide.Driver?.User?.lastName || ''}`,
-              driverRating: updatedRide.Driver ?.averageRating,
+              driverId: updatedRide.Driver?.id,
+              driverName: `${updatedRide.Driver?.User?.firstName || ''} ${
+                updatedRide.Driver?.User?.lastName || ''
+              }`,
+              driverRating: updatedRide.Driver?.averageRating,
               vehicle: updatedRide.Driver?.Vehicle,
               estimatedArrival: acceptData.estimatedPickupTime,
               // CORREÇÃO: Incluir localização atual do driver
@@ -1605,9 +1679,11 @@ export class RidesService {
             updatedRide.passengerId,
             rideId,
             {
-              driverId: updatedRide.Driver ?.id,
-              driverName: `${updatedRide.Driver?.User?.firstName || ''} ${updatedRide.Driver?.User?.lastName || ''}`,
-              driverRating: updatedRide.Driver ?.averageRating,
+              driverId: updatedRide.Driver?.id,
+              driverName: `${updatedRide.Driver?.User?.firstName || ''} ${
+                updatedRide.Driver?.User?.lastName || ''
+              }`,
+              driverRating: updatedRide.Driver?.averageRating,
               vehicle: updatedRide.Driver?.Vehicle,
               estimatedArrival: acceptData.estimatedPickupTime,
             },
@@ -1874,7 +1950,8 @@ export class RidesService {
           actualDistance: completeData.actualDistance,
           actualDuration: completeData.actualDuration,
         },
-        include: { Passenger: { select: { id: true, User: { select: { id: true } } } },
+        include: {
+          Passenger: { select: { id: true, User: { select: { id: true } } } },
           Driver: { select: { id: true, User: { select: { id: true } } } },
           Payment: true,
         },
@@ -1932,7 +2009,7 @@ export class RidesService {
         message: string;
       } | null = null;
 
-      if (ride.Payment ?.method) {
+      if (ride.Payment?.method) {
         this.logger.log(
           `💰 Processing ${ride.Payment.method} payment for ride ${rideId}: R$ ${ride.finalPrice}`,
         );
@@ -2000,7 +2077,11 @@ export class RidesService {
           );
 
           throw new BadRequestException(
-            `Falha crítica no pagamento: ${paymentError instanceof Error ? paymentError.message : 'Erro desconhecido'}`,
+            `Falha crítica no pagamento: ${
+              paymentError instanceof Error
+                ? paymentError.message
+                : 'Erro desconhecido'
+            }`,
           );
         }
       }
@@ -2059,7 +2140,9 @@ export class RidesService {
         });
 
       this.logger.log(
-        `🏁 Ride ${rideId} completed ULTRA-FAST by driver ${driverId}. Earnings: ${driverEarnings}, Payment: ${paymentResult?.success ? 'SUCCESS' : 'N/A'}`,
+        `🏁 Ride ${rideId} completed ULTRA-FAST by driver ${driverId}. Earnings: ${driverEarnings}, Payment: ${
+          paymentResult?.success ? 'SUCCESS' : 'N/A'
+        }`,
       );
 
       return {
@@ -2092,7 +2175,8 @@ export class RidesService {
     try {
       const ride = await this.prisma.ride.findUnique({
         where: { id: rideId },
-        include: { Passenger: { include: { User: true } },
+        include: {
+          Passenger: { include: { User: true } },
           Driver: { include: { User: true } },
           Payment: true,
         },
@@ -2119,7 +2203,7 @@ export class RidesService {
         cancellationFee = Math.min((ride.finalPrice || 0) * 0.3, 10);
       } else if (ride.status === 'IN_PROGRESS') {
         cancellationFee = Math.min((ride.finalPrice || 0) * 0.5, 20);
-      } else if (ride.Payment ?.status === PaymentStatus.PAID) {
+      } else if (ride.Payment?.status === PaymentStatus.PAID) {
         refundAmount = (ride.finalPrice || 0) - cancellationFee;
       }
 
@@ -2212,7 +2296,8 @@ export class RidesService {
       const [rides, total] = await Promise.all([
         this.prisma.ride.findMany({
           where: whereClause,
-          include: { Passenger: { include: { User: true } },
+          include: {
+            Passenger: { include: { User: true } },
             Driver: { include: { User: true, Vehicle: true } },
             RideTypeConfig: true,
             Payment: true,
@@ -2675,7 +2760,7 @@ export class RidesService {
   ) {
     try {
       // Query raw para buscar motoristas online em um raio específico usando fórmula Haversine
-      const drivers = await this.prisma.$queryRaw`
+      const drivers = (await this.prisma.$queryRaw`
         SELECT
           d.*,
           u."firstName",
@@ -2711,7 +2796,7 @@ export class RidesService {
             )
           ) <= ${radiusInMeters}
         ORDER BY distance ASC
-      ` as any[];
+      `) as any[];
 
       return drivers.map((driver) => ({
         ...driver,
@@ -2781,7 +2866,8 @@ export class RidesService {
             },
           ],
         },
-        include: { Passenger: {
+        include: {
+          Passenger: {
             include: { User: true },
           },
           Driver: {
@@ -2820,7 +2906,11 @@ export class RidesService {
           (Date.now() - ride.createdAt.getTime()) / (1000 * 60),
         );
         this.logger.warn(
-          `🗑️ Removendo ride órfã: ${ride.id} (status: ${ride.status}, idade: ${ageMinutes}min, passageiro: ${ride.Passenger?.User?.firstName || 'N/A'})`,
+          `🗑️ Removendo ride órfã: ${ride.id} (status: ${
+            ride.status
+          }, idade: ${ageMinutes}min, passageiro: ${
+            ride.Passenger?.User?.firstName || 'N/A'
+          })`,
         );
       });
 
@@ -2923,14 +3013,12 @@ export class RidesService {
             in: ['COMPLETED', 'CANCELLED'],
           },
         },
-        include: { Driver: {
-            include: { User: true,
-              Vehicle: true,
-            },
+        include: {
+          Driver: {
+            include: { User: true, Vehicle: true },
           },
           Passenger: {
-            include: { User: true,
-            },
+            include: { User: true },
           },
         },
         orderBy: {
@@ -2956,7 +3044,8 @@ export class RidesService {
         driver_id: ride.Driver ? Number(ride.Driver.id) : 0,
         user_id: userId,
         created_at: ride.createdAt.toISOString(),
-        driver: ride.Driver ? {
+        driver: ride.Driver
+          ? {
               first_name: ride.Driver.User?.firstName || 'Motorista',
               last_name: ride.Driver.User?.lastName || '',
               car_seats: ride.Driver.Vehicle?.capacity || 4,
