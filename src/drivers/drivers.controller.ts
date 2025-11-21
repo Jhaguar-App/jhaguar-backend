@@ -20,6 +20,7 @@ import { Throttle } from '@nestjs/throttler';
 import { DriversService } from './drivers.service';
 import { CreateDriverDto } from './dto/create-driver.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { Status } from '@prisma/client';
 import { User } from '../auth/decorator/user.decorator';
 import { UpdateDriverStatusDto } from './dto/update-driver-status.dto';
@@ -74,7 +75,7 @@ export class DriversController {
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Atualizar o status de um motorista' })
   @ApiResponse({ status: 200, description: 'Status atualizado com sucesso' })
@@ -87,6 +88,8 @@ export class DriversController {
   }
 
   @Post(':id/approve')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Aprovar manualmente um motorista (desenvolvimento)',
   })
@@ -131,10 +134,8 @@ export class DriversController {
     return this.driversService.findOnlineDrivers();
   }
 
-  // Novas rotas obrigatórias
-
   @Patch(':driverId/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Atualizar status do motorista' })
   @ApiResponse({
@@ -222,7 +223,6 @@ export class DriversController {
   ) {
     return this.driversService.updateLocation(driverId, updateLocationDto);
   }
-
 
   @Get(':driverId/stats')
   @UseGuards(JwtAuthGuard)

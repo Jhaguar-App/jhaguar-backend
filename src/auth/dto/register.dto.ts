@@ -7,6 +7,8 @@ import {
   IsPhoneNumber,
   IsString,
   MinLength,
+  Matches,
+  IsStrongPassword,
 } from 'class-validator';
 import { Gender } from '@prisma/client';
 
@@ -15,7 +17,10 @@ export class RegisterDto {
     description: 'E-mail do usuário',
     example: 'usuario@exemplo.com',
   })
-  @IsEmail()
+  @IsEmail({}, { message: 'Email inválido' })
+  @Matches(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, {
+    message: 'Formato de email inválido',
+  })
   @IsNotEmpty()
   email: string;
 
@@ -23,7 +28,7 @@ export class RegisterDto {
     description: 'Número de telefone do usuário',
     example: '+5511999999999',
   })
-  @IsPhoneNumber()
+  @IsPhoneNumber(null, { message: 'Número de telefone inválido' })
   @IsNotEmpty()
   phone: string;
 
@@ -44,11 +49,24 @@ export class RegisterDto {
   lastName: string;
 
   @ApiProperty({
-    description: 'Senha do usuário',
-    example: 'senha123',
+    description: 'Senha do usuário (mínimo 8 caracteres, contendo letra maiúscula, minúscula, número e caractere especial)',
+    example: 'Senha@123',
   })
   @IsString()
-  @MinLength(6)
+  @MinLength(8, { message: 'A senha deve ter no mínimo 8 caracteres' })
+  @IsStrongPassword(
+    {
+      minLength: 8,
+      minLowercase: 1,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1,
+    },
+    {
+      message:
+        'A senha deve conter pelo menos: 8 caracteres, 1 letra maiúscula, 1 letra minúscula, 1 número e 1 caractere especial',
+    },
+  )
   @IsNotEmpty()
   password: string;
 

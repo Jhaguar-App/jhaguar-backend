@@ -1,5 +1,6 @@
 export function getAllowedOrigins(): string[] | boolean {
   if (process.env.NODE_ENV !== 'production') {
+    console.warn('⚠️  WARNING: CORS aberto para desenvolvimento. Não usar em produção!');
     return true;
   }
 
@@ -8,6 +9,7 @@ export function getAllowedOrigins(): string[] | boolean {
     'https://www.jhaguar.com',
     'https://jhaguar.com.br',
     'https://www.jhaguar.com.br',
+    'https://api.jhaguar.com',
     process.env.FRONTEND_URL,
     process.env.MOBILE_APP_URL,
   ].filter(Boolean) as string[];

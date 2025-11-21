@@ -364,26 +364,30 @@ model Transaction {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  phone        String        @unique
-  firstName    String
-  lastName     String
-  password     String
-  gender       Gender
-  dateOfBirth  DateTime?
-  profileImage String?
-  address      String?
-  isVerified   Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
-  ChatMessage  ChatMessage[]
-  Driver       Driver?
-  Passenger    Passenger?
-  Rating       Rating[]
-  Transaction  Transaction[]
-  UserWallet   UserWallet?
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  phone               String         @unique
+  firstName           String
+  lastName            String
+  password            String
+  gender              Gender
+  dateOfBirth         DateTime?
+  profileImage        String?
+  address             String?
+  isVerified          Boolean        @default(false)
+  failedLoginAttempts Int            @default(0)
+  accountLockedUntil  DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  deletedAt           DateTime?
+  ChatMessage         ChatMessage[]
+  Driver              Driver?
+  Passenger           Passenger?
+  Rating              Rating[]
+  Transaction         Transaction[]
+  UserWallet          UserWallet?
+  RefreshToken        RefreshToken[]
+  AuthLog             AuthLog[]
 }
 
 model UserWallet {
@@ -537,4 +541,50 @@ enum VehicleType {
   SUV
   VAN
   MOTORCYCLE
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  token      String    @unique
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+  replacedBy String?
+  ipAddress  String?
+  userAgent  String?
+  User       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model AuthLog {
+  id            String     @id @default(uuid())
+  userId        String?
+  email         String
+  action        AuthAction
+  success       Boolean
+  ipAddress     String?
+  userAgent     String?
+  failureReason String?
+  createdAt     DateTime   @default(now())
+  User          User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([action])
+  @@index([createdAt])
+  @@index([success])
+}
+
+enum AuthAction {
+  LOGIN
+  REGISTER
+  LOGOUT
+  REFRESH_TOKEN
+  PASSWORD_CHANGE
+  PASSWORD_RESET
+  ACCOUNT_LOCKED
 }
