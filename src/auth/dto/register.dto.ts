@@ -28,7 +28,7 @@ export class RegisterDto {
     description: 'Número de telefone do usuário',
     example: '+5511999999999',
   })
-  @IsPhoneNumber(null, { message: 'Número de telefone inválido' })
+  @IsPhoneNumber(undefined, { message: 'Número de telefone inválido' })
   @IsNotEmpty()
   phone: string;
 
