@@ -20,6 +20,8 @@ import { MapsModule } from './maps/maps.module';
 import { RideTypesModule } from './ride-types/ride-types.module';
 import { StripeModule } from './stripe/stripe.module';
 import { RedisModule } from './common/redis/redis.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { ChatModule } from './chat/chat.module';
 
 @Module({
@@ -27,6 +29,9 @@ import { ChatModule } from './chat/chat.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot({
