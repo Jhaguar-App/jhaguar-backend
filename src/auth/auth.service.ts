@@ -13,6 +13,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcrypt';
 import { AuthAction, Status } from '@prisma/client';
 import { PaymentsService } from '../payments/payments.service';
@@ -688,6 +689,57 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Token inválido ou expirado.');
     }
+  }
+
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const passwordValid = await bcrypt.compare(
+      changePasswordDto.currentPassword,
+      user.password,
+    );
+
+    if (!passwordValid) {
+      await this.logAuthEvent({
+        userId: user.id,
+        email: user.email,
+        action: AuthAction.PASSWORD_CHANGE,
+        success: false,
+        failureReason: 'Senha atual incorreta',
+      });
+      throw new UnauthorizedException('A senha atual está incorreta.');
+    }
+
+    const hashedPassword = await bcrypt.hash(
+      changePasswordDto.newPassword,
+      BCRYPT_ROUNDS,
+    );
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    await this.logAuthEvent({
+      userId: user.id,
+      email: user.email,
+      action: AuthAction.PASSWORD_CHANGE,
+      success: true,
+      failureReason: 'Senha alterada com sucesso',
+    });
+
+    return {
+      success: true,
+      message: 'Senha alterada com sucesso.',
+    };
   }
 
   private isAdmin(email: string): boolean {

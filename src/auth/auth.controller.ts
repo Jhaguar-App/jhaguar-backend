@@ -8,6 +8,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User } from './decorator/user.decorator';
 
@@ -134,5 +135,22 @@ export class AuthController {
     @Req() req: Request,
   ) {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle(3, 60)
+  @ApiOperation({ summary: 'Alterar senha do usuário autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Senha alterada com sucesso',
+  })
+  @ApiResponse({ status: 401, description: 'Senha atual incorreta' })
+  async changePassword(
+    @User() user: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.id, changePasswordDto);
   }
 }
