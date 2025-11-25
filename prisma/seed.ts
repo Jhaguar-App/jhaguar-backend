@@ -271,6 +271,76 @@ async function main() {
     `✅ Created driver: ${driver2User.firstName} ${driver2User.lastName}\n`,
   );
 
+  // Motorista 3 - Google Play Review
+  const googlePlayPassword = await bcrypt.hash('Admin2020.', 10);
+  const driver3User = await prisma.user.create({
+    data: {
+      email: 'lucas@motorista.com',
+      phone: '+5517999999999',
+      firstName: 'Lucas',
+      lastName: 'Motorista',
+      password: googlePlayPassword,
+      gender: Gender.MALE,
+      isVerified: true,
+      dateOfBirth: new Date('1990-01-01'),
+    },
+  });
+
+  await prisma.userWallet.create({
+    data: {
+      userId: driver3User.id,
+      balance: 100.0,
+      currency: 'BRL',
+    },
+  });
+
+  const driver3 = await prisma.driver.create({
+    data: {
+      userId: driver3User.id,
+      licenseNumber: 'CNH_TEST_PLAY',
+      licenseExpiryDate: new Date('2030-12-31'),
+      accountStatus: Status.APPROVED,
+      backgroundCheckStatus: Status.APPROVED,
+      backgroundCheckDate: new Date(),
+      isAvailable: true,
+      isOnline: false,
+      currentLatitude: -20.3155,
+      currentLongitude: -50.7416,
+    },
+  });
+
+  await prisma.vehicle.create({
+    data: {
+      driverId: driver3.id,
+      make: 'Chevrolet',
+      model: 'Onix',
+      year: 2024,
+      color: 'Preto',
+      licensePlate: 'PLAY2024',
+      registrationExpiryDate: new Date('2030-12-31'),
+      insuranceExpiryDate: new Date('2030-12-31'),
+      vehicleType: VehicleType.COMFORT,
+      capacity: 4,
+      features: ['Ar Condicionado', 'Vidros Elétricos'],
+      inspectionStatus: Status.APPROVED,
+      inspectionDate: new Date(),
+    },
+  });
+
+  if (normalRideType) {
+    await prisma.driverRideType.create({
+      data: {
+        driverId: driver3.id,
+        rideTypeId: normalRideType.id,
+        isActive: true,
+      },
+    });
+  }
+
+  console.log(
+    `✅ Created driver: ${driver3User.firstName} ${driver3User.lastName} (Google Play Review)\n`,
+  );
+
   // 3. Criar Passageiros
   console.log('👥 Creating passengers...');
   const passengerPassword = await bcrypt.hash('Pass123!', 10);
