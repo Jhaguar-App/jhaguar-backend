@@ -10,6 +10,8 @@ export function getAllowedOrigins(): string[] | boolean {
     'https://jhaguar.com.br',
     'https://www.jhaguar.com.br',
     'https://api.jhaguar.com',
+    'https://jhaguar-backend-production.up.railway.app',
+    'https://admin.jhaguar.com',
     process.env.FRONTEND_URL,
     process.env.MOBILE_APP_URL,
   ].filter(Boolean) as string[];
