@@ -57,7 +57,7 @@ export default function LoginPage() {
 
       localStorage.setItem('admin_token', access_token);
       localStorage.setItem('admin_user', JSON.stringify(user));
-      router.push('/dashboard');
+      router.push('/');
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || 'Erro ao fazer login. Verifique suas credenciais.');

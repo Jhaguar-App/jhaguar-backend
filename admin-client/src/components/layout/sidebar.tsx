@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 const sidebarItems = [
   {
     title: 'Dashboard',
-    href: '/dashboard',
+    href: '/',
     icon: LayoutDashboard,
   },
   {
