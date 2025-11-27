@@ -17,9 +17,6 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import api from '@/lib/api';
-import { toast } from 'sonner'; // Need to install sonner or use toast from shadcn if available. Shadcn usually uses sonner or toast. I'll check package.json or just use alert for now if not installed.
-// Actually I didn't install sonner. I'll use window.alert or console for now, or install it.
-// I'll install sonner later. For now, simple alerts.
 
 export default function DriverDetailsPage() {
   const params = useParams();
