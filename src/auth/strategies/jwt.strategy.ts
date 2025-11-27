@@ -43,6 +43,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       driverId: payload.driverId,
       passengerId: payload.passengerId,
       driverStatus: payload.driverStatus,
+      isAdmin: payload.isAdmin,
     };
   }
 }
