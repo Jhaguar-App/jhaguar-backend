@@ -357,6 +357,7 @@ export class AuthService {
         lastName: true,
         phone: true,
         profileImage: true,
+        isAdmin: true,
       },
     });
 
@@ -401,7 +402,7 @@ export class AuthService {
       driverId: driver?.id,
       passengerId: passenger?.id,
       driverStatus: driver?.accountStatus,
-      isAdmin: this.isAdmin(email),
+      isAdmin: userDetails.isAdmin || this.isAdmin(email),
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -484,6 +485,7 @@ export class AuthService {
         address: true,
         createdAt: true,
         updatedAt: true,
+        isAdmin: true,
       },
     });
 
@@ -523,6 +525,7 @@ export class AuthService {
 
     const result = {
       ...user,
+      isAdmin: user.isAdmin,
       isDriver: !!driver,
       isPassenger: !!passenger,
       driverStatus: driver?.accountStatus || null,

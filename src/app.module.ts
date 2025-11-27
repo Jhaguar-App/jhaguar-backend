@@ -23,6 +23,7 @@ import { RedisModule } from './common/redis/redis.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { ChatModule } from './chat/chat.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -53,7 +54,9 @@ import { ChatModule } from './chat/chat.module';
     DocumentsModule,
     NotificationsModule,
     StripeModule,
+    StripeModule,
     ChatModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

@@ -375,6 +375,7 @@ model User {
   profileImage        String?
   address             String?
   isVerified          Boolean        @default(false)
+  isAdmin             Boolean        @default(false)
   failedLoginAttempts Int            @default(0)
   accountLockedUntil  DateTime?
   createdAt           DateTime       @default(now())
