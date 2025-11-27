@@ -431,6 +431,7 @@ export class AuthService {
       lastName: userDetails.lastName,
       phone: userDetails.phone,
       profileImage: userDetails.profileImage,
+      isAdmin: userDetails.isAdmin || this.isAdmin(userDetails.email),
       isDriver: !!driver,
       isPassenger: !!passenger,
       driverStatus: driver?.accountStatus || null,
