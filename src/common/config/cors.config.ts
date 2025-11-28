@@ -4,6 +4,9 @@ export function getAllowedOrigins(): string[] | boolean {
     return true;
   }
 
+  return true; // TEMPORARY DEBUG: Allow all origins
+  
+  /*
   const origins = [
     'https://jhaguar.com',
     'https://www.jhaguar.com',
@@ -17,6 +20,7 @@ export function getAllowedOrigins(): string[] | boolean {
   ].filter(Boolean) as string[];
 
   return origins;
+  */
 }
 
 export function getHttpCorsConfig() {
