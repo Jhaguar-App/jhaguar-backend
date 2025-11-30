@@ -43,9 +43,11 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log('Tentando fazer login...', values.email);
     setIsLoading(true);
     setError('');
     try {
+      console.log('Enviando requisição para:', api.defaults.baseURL);
       const response = await api.post('/auth/login', values);
       const { access_token, user } = response.data;
 
