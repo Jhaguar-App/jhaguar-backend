@@ -67,8 +67,8 @@ export default function DriverDetailsPage() {
 
   // Initialize selected categories when data loads
   if (driver && selectedCategories.length === 0 && driver.DriverRideType) {
-      const active = driver.DriverRideType.filter((dt: any) => dt.isActive).map((dt: any) => dt.RideTypeConfig.type);
-      if (active.length > 0) setSelectedCategories(active);
+      const authorized = driver.DriverRideType.map((dt: any) => dt.RideTypeConfig.type);
+      if (authorized.length > 0) setSelectedCategories(authorized);
   }
 
   if (isLoading) {
@@ -106,6 +106,36 @@ export default function DriverDetailsPage() {
     { id: 'DELIVERY', label: 'Entregas' },
     { id: 'MOTO', label: 'Moto' },
   ];
+
+  const checkCompatibility = (category: { id: string; label: string }, vehicle: any) => {
+    if (!vehicle) return { compatible: false, reason: 'Sem veículo' };
+
+    switch (category.id) {
+      case 'BLINDADO':
+        if (!vehicle.isArmored) return { compatible: false, reason: 'Requer veículo blindado' };
+        break;
+      case 'EXECUTIVO':
+        if (!vehicle.isLuxury) return { compatible: false, reason: 'Requer veículo de luxo' };
+        break;
+      case 'PET':
+        if (!vehicle.isPetFriendly) return { compatible: false, reason: 'Requer veículo Pet Friendly' };
+        break;
+      case 'DELIVERY':
+        if (!vehicle.deliveryCapable) return { compatible: false, reason: 'Requer habilitação para entregas' };
+        break;
+      case 'MOTO':
+        if (!vehicle.isMotorcycle) return { compatible: false, reason: 'Requer motocicleta' };
+        break;
+      case 'MULHER':
+        // Check driver gender if available
+        if (driver.User.gender !== 'FEMALE') return { compatible: false, reason: 'Apenas motoristas mulheres' };
+        break;
+      case 'NORMAL':
+        if (vehicle.isMotorcycle) return { compatible: false, reason: 'Motos usam categoria Moto' };
+        break;
+    }
+    return { compatible: true };
+  };
 
   return (
     <div className="space-y-6">
@@ -170,18 +200,29 @@ export default function DriverDetailsPage() {
           <CardContent className="space-y-2">
             {driver.Vehicle ? (
               <>
-                <div>
-                  <span className="font-semibold">Modelo:</span> {driver.Vehicle.make} {driver.Vehicle.model}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="font-semibold">Modelo:</span> {driver.Vehicle.make} {driver.Vehicle.model}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Placa:</span> {driver.Vehicle.licensePlate}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Cor:</span> {driver.Vehicle.color}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Ano:</span> {driver.Vehicle.year}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-semibold">Placa:</span> {driver.Vehicle.licensePlate}
+                
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {driver.Vehicle.isArmored && <Badge variant="secondary">Blindado</Badge>}
+                  {driver.Vehicle.isLuxury && <Badge variant="secondary">Luxo</Badge>}
+                  {driver.Vehicle.isPetFriendly && <Badge variant="secondary">Pet Friendly</Badge>}
+                  {driver.Vehicle.deliveryCapable && <Badge variant="secondary">Entregas</Badge>}
+                  {driver.Vehicle.isMotorcycle && <Badge variant="secondary">Moto</Badge>}
                 </div>
-                <div>
-                  <span className="font-semibold">Cor:</span> {driver.Vehicle.color}
-                </div>
-                <div>
-                  <span className="font-semibold">Ano:</span> {driver.Vehicle.year}
-                </div>
+
                  <div className="pt-4 flex gap-2">
                   <Button
                     variant="outline"
@@ -217,16 +258,34 @@ export default function DriverDetailsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {availableCategories.map((cat) => (
-              <div key={cat.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={cat.id}
-                  checked={selectedCategories.includes(cat.id)}
-                  onCheckedChange={(checked) => handleCategoryChange(cat.id, checked as boolean)}
-                />
-                <Label htmlFor={cat.id}>{cat.label}</Label>
-              </div>
-            ))}
+            {availableCategories.map((cat) => {
+              const isCompatible = checkCompatibility(cat, driver.Vehicle);
+              return (
+                <div key={cat.id} className="flex items-start space-x-2">
+                  <Checkbox
+                    id={cat.id}
+                    checked={selectedCategories.includes(cat.id)}
+                    onCheckedChange={(checked) => handleCategoryChange(cat.id, checked as boolean)}
+                    disabled={!isCompatible.compatible && !selectedCategories.includes(cat.id)} // Disable if not compatible and not already selected
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label
+                      htmlFor={cat.id}
+                      className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
+                        !isCompatible.compatible ? 'text-red-500' : ''
+                      }`}
+                    >
+                      {cat.label}
+                    </Label>
+                    {!isCompatible.compatible && (
+                      <p className="text-xs text-red-500">
+                        {isCompatible.reason}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <div className="pt-6">
             <Button onClick={saveCategories} disabled={updateCategoriesMutation.isPending}>

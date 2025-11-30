@@ -21,8 +21,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 
@@ -32,6 +34,11 @@ const formSchema = z.object({
   year: z.coerce.number().min(1900, 'Ano inválido').max(new Date().getFullYear() + 1, 'Ano inválido'),
   color: z.string().min(1, 'Cor é obrigatória'),
   licensePlate: z.string().min(1, 'Placa é obrigatória'),
+  isArmored: z.boolean().default(false),
+  isLuxury: z.boolean().default(false),
+  isPetFriendly: z.boolean().default(false),
+  deliveryCapable: z.boolean().default(false),
+  isMotorcycle: z.boolean().default(false),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -44,6 +51,11 @@ interface VehicleFormProps {
     year: number;
     color: string;
     licensePlate: string;
+    isArmored?: boolean;
+    isLuxury?: boolean;
+    isPetFriendly?: boolean;
+    deliveryCapable?: boolean;
+    isMotorcycle?: boolean;
   } | null;
 }
 
@@ -59,6 +71,11 @@ export function VehicleForm({ driverId, vehicle }: VehicleFormProps) {
       year: vehicle?.year || new Date().getFullYear(),
       color: vehicle?.color || '',
       licensePlate: vehicle?.licensePlate || '',
+      isArmored: vehicle?.isArmored || false,
+      isLuxury: vehicle?.isLuxury || false,
+      isPetFriendly: vehicle?.isPetFriendly || false,
+      deliveryCapable: vehicle?.deliveryCapable || false,
+      isMotorcycle: vehicle?.isMotorcycle || false,
     },
   });
 
@@ -96,11 +113,11 @@ export function VehicleForm({ driverId, vehicle }: VehicleFormProps) {
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{vehicle ? 'Editar Veículo' : 'Adicionar Veículo'}</DialogTitle>
           <DialogDescription>
-            Insira os dados do veículo do motorista.
+            Insira os dados e características do veículo do motorista.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -174,6 +191,113 @@ export function VehicleForm({ driverId, vehicle }: VehicleFormProps) {
                 </FormItem>
               )}
             />
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium">Características</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="isArmored"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Blindado</FormLabel>
+                        <FormDescription>
+                          Veículo possui blindagem certificada.
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isLuxury"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Luxo</FormLabel>
+                        <FormDescription>
+                          Categoria Executivo/Black.
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isPetFriendly"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Pet Friendly</FormLabel>
+                        <FormDescription>
+                          Aceita transporte de animais.
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="deliveryCapable"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Entregas</FormLabel>
+                        <FormDescription>
+                          Habilitado para realizar entregas.
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isMotorcycle"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Moto</FormLabel>
+                        <FormDescription>
+                          Veículo é uma motocicleta.
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
             <Button type="submit" className="w-full" disabled={mutation.isPending}>
               {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar

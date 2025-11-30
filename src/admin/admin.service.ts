@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Status, RideTypeEnum } from '@prisma/client';
 
@@ -120,39 +120,89 @@ export class AdminService {
   }
 
   async updateDriverCategories(driverId: string, categories: RideTypeEnum[]) {
+    // Fetch driver with vehicle to validate requirements
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      include: { Vehicle: true, User: true },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Motorista não encontrado');
+    }
+
     // First, get all available ride types
     const allTypes = await this.prisma.rideTypeConfig.findMany();
     
+    // Validate requirements
+    for (const cat of categories) {
+      const typeConfig = allTypes.find((t) => t.type === cat);
+      if (!typeConfig) continue;
+
+      if (typeConfig.requiresArmored && !driver.Vehicle?.isArmored) {
+        throw new BadRequestException(`A categoria ${typeConfig.name} requer veículo blindado.`);
+      }
+      if (typeConfig.requiresPetFriendly && !driver.Vehicle?.isPetFriendly) {
+        throw new BadRequestException(`A categoria ${typeConfig.name} requer veículo Pet Friendly.`);
+      }
+      if (typeConfig.type === 'EXECUTIVO' && !driver.Vehicle?.isLuxury) {
+         throw new BadRequestException(`A categoria ${typeConfig.name} requer veículo de luxo.`);
+      }
+      if (typeConfig.type === 'DELIVERY' && !driver.Vehicle?.deliveryCapable) {
+         throw new BadRequestException(`A categoria ${typeConfig.name} requer habilitação para entregas.`);
+      }
+      if (typeConfig.type === 'MOTO' && !driver.Vehicle?.isMotorcycle) {
+         throw new BadRequestException(`A categoria ${typeConfig.name} requer motocicleta.`);
+      }
+      if (typeConfig.type === 'MULHER' && driver.User.gender !== 'FEMALE') {
+         throw new BadRequestException(`A categoria ${typeConfig.name} é exclusiva para motoristas mulheres.`);
+      }
+       // Prevent assigning MOTO category to cars and vice-versa (basic check)
+      if (typeConfig.type !== 'MOTO' && driver.Vehicle?.isMotorcycle && typeConfig.type !== 'DELIVERY') {
+          // Assuming motorcycles can only do MOTO and DELIVERY
+           throw new BadRequestException(`Motocicletas só podem realizar corridas Moto ou Delivery.`);
+      }
+    }
+
     // Transaction to update categories
     return this.prisma.$transaction(async (tx) => {
-      // Disable all existing categories for this driver
-      await tx.driverRideType.updateMany({
+      // Get existing categories for this driver
+      const existingTypes = await tx.driverRideType.findMany({
         where: { driverId },
-        data: { isActive: false },
+        include: { RideTypeConfig: true },
       });
 
-      // Enable or create the selected ones
+      const existingTypeNames = existingTypes.map((et) => et.RideTypeConfig.type);
+
+      // 1. Delete categories that are no longer selected
+      const typesToDelete = existingTypes.filter(
+        (et) => !categories.includes(et.RideTypeConfig.type),
+      );
+      
+      if (typesToDelete.length > 0) {
+        await tx.driverRideType.deleteMany({
+          where: {
+            id: { in: typesToDelete.map((t) => t.id) },
+          },
+        });
+      }
+
+      // 2. Add new categories that are selected but don't exist yet
       for (const cat of categories) {
-        const typeConfig = allTypes.find((t) => t.type === cat);
-        if (typeConfig) {
-          await tx.driverRideType.upsert({
-            where: {
-              driverId_rideTypeId: {
+        if (!existingTypeNames.includes(cat)) {
+          const typeConfig = allTypes.find((t) => t.type === cat);
+          if (typeConfig) {
+            await tx.driverRideType.create({
+              data: {
                 driverId,
                 rideTypeId: typeConfig.id,
+                isActive: true, // Default to true for new permissions
               },
-            },
-            create: {
-              driverId,
-              rideTypeId: typeConfig.id,
-              isActive: true,
-            },
-            update: {
-              isActive: true,
-            },
-          });
+            });
+          }
         }
       }
+
+      // 3. Existing categories are left untouched to preserve driver's "isActive" preference
 
       return this.getDriver(driverId);
     });
@@ -177,6 +227,11 @@ export class AdminService {
           new Date().setFullYear(new Date().getFullYear() + 1),
         ),
         inspectionStatus: Status.PENDING,
+        isArmored: vehicleData.isArmored || false,
+        isLuxury: vehicleData.isLuxury || false,
+        isPetFriendly: vehicleData.isPetFriendly || false,
+        deliveryCapable: vehicleData.deliveryCapable || false,
+        isMotorcycle: vehicleData.isMotorcycle || false,
       },
       update: {
         make: vehicleData.make,
@@ -184,6 +239,11 @@ export class AdminService {
         year: Number(vehicleData.year),
         color: vehicleData.color,
         licensePlate: vehicleData.licensePlate,
+        isArmored: vehicleData.isArmored,
+        isLuxury: vehicleData.isLuxury,
+        isPetFriendly: vehicleData.isPetFriendly,
+        deliveryCapable: vehicleData.deliveryCapable,
+        isMotorcycle: vehicleData.isMotorcycle,
       },
     });
   }
