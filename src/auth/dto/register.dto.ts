@@ -12,6 +12,32 @@ import {
 } from 'class-validator';
 import { Gender } from '@prisma/client';
 
+export class VehicleDto {
+  @ApiProperty({ example: 'Toyota' })
+  @IsString()
+  @IsNotEmpty()
+  make: string;
+
+  @ApiProperty({ example: 'Corolla' })
+  @IsString()
+  @IsNotEmpty()
+  model: string;
+
+  @ApiProperty({ example: 2022 })
+  @IsNotEmpty()
+  year: number;
+
+  @ApiProperty({ example: 'Prata' })
+  @IsString()
+  @IsNotEmpty()
+  color: string;
+
+  @ApiProperty({ example: 'ABC-1234' })
+  @IsString()
+  @IsNotEmpty()
+  licensePlate: string;
+}
+
 export class RegisterDto {
   @ApiProperty({
     description: 'E-mail do usuário',
@@ -120,30 +146,4 @@ export class RegisterDto {
   })
   @IsOptional()
   vehicle?: VehicleDto;
-}
-
-export class VehicleDto {
-  @ApiProperty({ example: 'Toyota' })
-  @IsString()
-  @IsNotEmpty()
-  make: string;
-
-  @ApiProperty({ example: 'Corolla' })
-  @IsString()
-  @IsNotEmpty()
-  model: string;
-
-  @ApiProperty({ example: 2022 })
-  @IsNotEmpty()
-  year: number;
-
-  @ApiProperty({ example: 'Prata' })
-  @IsString()
-  @IsNotEmpty()
-  color: string;
-
-  @ApiProperty({ example: 'ABC-1234' })
-  @IsString()
-  @IsNotEmpty()
-  licensePlate: string;
 }
