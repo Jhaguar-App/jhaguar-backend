@@ -158,6 +158,36 @@ export class AdminService {
     });
   }
 
+  async updateDriverVehicle(driverId: string, vehicleData: any) {
+    return this.prisma.vehicle.upsert({
+      where: { driverId },
+      create: {
+        driverId,
+        make: vehicleData.make,
+        model: vehicleData.model,
+        year: Number(vehicleData.year),
+        color: vehicleData.color,
+        licensePlate: vehicleData.licensePlate,
+        vehicleType: 'ECONOMY', // Default
+        capacity: 4, // Default
+        registrationExpiryDate: new Date(
+          new Date().setFullYear(new Date().getFullYear() + 1),
+        ),
+        insuranceExpiryDate: new Date(
+          new Date().setFullYear(new Date().getFullYear() + 1),
+        ),
+        inspectionStatus: Status.PENDING,
+      },
+      update: {
+        make: vehicleData.make,
+        model: vehicleData.model,
+        year: Number(vehicleData.year),
+        color: vehicleData.color,
+        licensePlate: vehicleData.licensePlate,
+      },
+    });
+  }
+
   async getUsers(page: number = 1, limit: number = 10, search?: string) {
     const skip = (page - 1) * limit;
     const where: any = {};

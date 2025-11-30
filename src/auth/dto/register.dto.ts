@@ -113,4 +113,37 @@ export class RegisterDto {
   @IsEnum(['PASSENGER', 'DRIVER'])
   @IsNotEmpty()
   userType: string;
+
+  @ApiProperty({
+    description: 'Dados do veículo (apenas para motoristas)',
+    required: false,
+  })
+  @IsOptional()
+  vehicle?: VehicleDto;
+}
+
+export class VehicleDto {
+  @ApiProperty({ example: 'Toyota' })
+  @IsString()
+  @IsNotEmpty()
+  make: string;
+
+  @ApiProperty({ example: 'Corolla' })
+  @IsString()
+  @IsNotEmpty()
+  model: string;
+
+  @ApiProperty({ example: 2022 })
+  @IsNotEmpty()
+  year: number;
+
+  @ApiProperty({ example: 'Prata' })
+  @IsString()
+  @IsNotEmpty()
+  color: string;
+
+  @ApiProperty({ example: 'ABC-1234' })
+  @IsString()
+  @IsNotEmpty()
+  licensePlate: string;
 }

@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import api from '@/lib/api';
+import { VehicleForm } from '@/components/drivers/vehicle-form';
 
 export default function DriverDetailsPage() {
   const params = useParams();
@@ -157,11 +158,14 @@ export default function DriverDetailsPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Veículo</CardTitle>
-            <CardDescription>
-                Status: {driver.Vehicle?.inspectionStatus || 'N/A'}
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="space-y-1">
+              <CardTitle>Veículo</CardTitle>
+              <CardDescription>
+                  Status: {driver.Vehicle?.inspectionStatus || 'N/A'}
+              </CardDescription>
+            </div>
+            <VehicleForm driverId={driver.id} vehicle={driver.Vehicle} />
           </CardHeader>
           <CardContent className="space-y-2">
             {driver.Vehicle ? (

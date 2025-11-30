@@ -109,6 +109,29 @@ export class AuthService {
               backgroundCheckStatus: Status.PENDING,
             },
           });
+
+          if (registerDto.vehicle) {
+            await tx.vehicle.create({
+              data: {
+                driverId: driver.id,
+                make: registerDto.vehicle.make,
+                model: registerDto.vehicle.model,
+                year: Number(registerDto.vehicle.year),
+                color: registerDto.vehicle.color,
+                licensePlate: registerDto.vehicle.licensePlate,
+                vehicleType: 'ECONOMY', 
+                capacity: 4, 
+                registrationExpiryDate: new Date(
+                  new Date().setFullYear(new Date().getFullYear() + 1),
+                ),
+                insuranceExpiryDate: new Date(
+                  new Date().setFullYear(new Date().getFullYear() + 1),
+                ),
+                inspectionStatus: Status.PENDING,
+              },
+            });
+          }
+
           return { user, passenger: null, driver };
         }
 

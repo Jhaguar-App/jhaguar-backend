@@ -62,6 +62,14 @@ export class AdminController {
     return this.adminService.updateDriverCategories(id, categories);
   }
 
+  @Patch('drivers/:id/vehicle')
+  async updateDriverVehicle(
+    @Param('id') id: string,
+    @Body() vehicleData: any,
+  ) {
+    return this.adminService.updateDriverVehicle(id, vehicleData);
+  }
+
   @Get('users')
   async getUsers(
     @Query('page', ParseIntPipe) page: number = 1,
