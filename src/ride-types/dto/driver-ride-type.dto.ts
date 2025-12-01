@@ -38,3 +38,16 @@ export class UpdateDriverRideTypesDto {
   @IsString({ each: true })
   rideTypeIds: string[];
 }
+
+export class ToggleDriverRideTypesDto {
+  @ApiProperty({
+    description: 'IDs dos tipos de corrida que o motorista quer ativar',
+    example: [
+      'clxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+      'clxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxy',
+    ],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  activeRideTypeIds: string[];
+}

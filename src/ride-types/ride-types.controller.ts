@@ -32,6 +32,7 @@ import {
   CalculateRidePriceDto,
   AddDriverRideTypeDto,
   UpdateDriverRideTypesDto,
+  ToggleDriverRideTypesDto,
   RideTypeConfigResponse,
   RidePriceCalculationResponse,
   AvailableDriversResponse,
@@ -529,21 +530,24 @@ export class RideTypesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Atualizar meus tipos de corrida (motorista autenticado)',
+    summary: 'Ativar/desativar categorias autorizadas (motorista autenticado)',
+    description:
+      'Permite que o motorista escolha quais categorias autorizadas pelo administrador ele quer aceitar corridas. O motorista não pode adicionar novas categorias, apenas ativar ou desativar as que já foram autorizadas.',
   })
-  @ApiResponse({ status: 200, description: 'Tipos atualizados com sucesso' })
+  @ApiResponse({ status: 200, description: 'Categorias atualizadas com sucesso' })
+  @ApiResponse({ status: 400, description: 'Tentando ativar categorias não autorizadas' })
   @ApiResponse({ status: 404, description: 'Usuário não é motorista' })
   async updateMyRideTypes(
-    @Body() updateDto: UpdateDriverRideTypesDto,
+    @Body() updateDto: ToggleDriverRideTypesDto,
     @User() user: any,
   ) {
     if (!user.isDriver || !user.driverId) {
       throw new BadRequestException('Usuário não é um motorista');
     }
 
-    return this.rideTypesService.updateDriverRideTypes(
+    return this.rideTypesService.toggleDriverRideTypes(
       user.driverId,
-      updateDto,
+      updateDto.activeRideTypeIds,
     );
   }
 

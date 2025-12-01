@@ -508,6 +508,56 @@ export class RideTypesService {
     }));
   }
 
+  async toggleDriverRideTypes(
+    driverId: string,
+    activeRideTypeIds: string[],
+  ): Promise<any> {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException(
+        `Motorista com ID ${driverId} não encontrado`,
+      );
+    }
+
+    const authorizedTypes = await this.prisma.driverRideType.findMany({
+      where: { driverId },
+      include: { RideTypeConfig: true },
+    });
+
+    if (authorizedTypes.length === 0) {
+      throw new BadRequestException(
+        'Este motorista não possui categorias autorizadas. Entre em contato com o administrador.',
+      );
+    }
+
+    const authorizedTypeIds = authorizedTypes.map((t) => t.rideTypeId);
+    const invalidTypes = activeRideTypeIds.filter(
+      (id) => !authorizedTypeIds.includes(id),
+    );
+
+    if (invalidTypes.length > 0) {
+      throw new BadRequestException(
+        'Você está tentando ativar categorias não autorizadas. Apenas categorias autorizadas pelo administrador podem ser ativadas.',
+      );
+    }
+
+    await this.prisma.$transaction(
+      authorizedTypes.map((type) =>
+        this.prisma.driverRideType.update({
+          where: { id: type.id },
+          data: {
+            isActive: activeRideTypeIds.includes(type.rideTypeId),
+          },
+        }),
+      ),
+    );
+
+    return this.getDriverRideTypes(driverId);
+  }
+
   async removeDriverRideType(
     driverId: string,
     rideTypeId: string,

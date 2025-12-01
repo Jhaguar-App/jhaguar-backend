@@ -251,22 +251,27 @@ export default function DriverDetailsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Categorias de Corrida</CardTitle>
+          <CardTitle>Categorias Autorizadas</CardTitle>
           <CardDescription>
-            Selecione as categorias permitidas para este motorista.
+            Selecione as categorias que este motorista está autorizado a fazer corridas.
+            O motorista poderá ativar ou desativar essas categorias no aplicativo conforme sua preferência.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {availableCategories.map((cat) => {
               const isCompatible = checkCompatibility(cat, driver.Vehicle);
+              const isAuthorized = selectedCategories.includes(cat.id);
+              const driverType = driver.DriverRideType?.find((dt: any) => dt.RideTypeConfig.type === cat.id);
+              const isActive = driverType?.isActive;
+
               return (
                 <div key={cat.id} className="flex items-start space-x-2">
                   <Checkbox
                     id={cat.id}
-                    checked={selectedCategories.includes(cat.id)}
+                    checked={isAuthorized}
                     onCheckedChange={(checked) => handleCategoryChange(cat.id, checked as boolean)}
-                    disabled={!isCompatible.compatible && !selectedCategories.includes(cat.id)} // Disable if not compatible and not already selected
+                    disabled={!isCompatible.compatible && !isAuthorized}
                   />
                   <div className="grid gap-1.5 leading-none">
                     <Label
@@ -276,10 +281,20 @@ export default function DriverDetailsPage() {
                       }`}
                     >
                       {cat.label}
+                      {isAuthorized && isActive !== undefined && (
+                        <span className={`ml-2 text-xs ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
+                          {isActive ? '(ativa)' : '(inativa)'}
+                        </span>
+                      )}
                     </Label>
                     {!isCompatible.compatible && (
                       <p className="text-xs text-red-500">
                         {isCompatible.reason}
+                      </p>
+                    )}
+                    {isAuthorized && !isCompatible.compatible && (
+                      <p className="text-xs text-amber-600">
+                        Categoria autorizada mas veículo incompatível
                       </p>
                     )}
                   </div>
@@ -287,11 +302,15 @@ export default function DriverDetailsPage() {
               );
             })}
           </div>
-          <div className="pt-6">
+          <div className="pt-6 space-y-2">
             <Button onClick={saveCategories} disabled={updateCategoriesMutation.isPending}>
               {updateCategoriesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar Categorias
+              Salvar Categorias Autorizadas
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Categorias autorizadas podem ser ativadas/desativadas pelo motorista no app.
+              O status (ativa/inativa) indica a escolha atual do motorista.
+            </p>
           </div>
         </CardContent>
       </Card>
