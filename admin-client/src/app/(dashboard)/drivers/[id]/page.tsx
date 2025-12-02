@@ -271,7 +271,6 @@ export default function DriverDetailsPage() {
                     id={cat.id}
                     checked={isAuthorized}
                     onCheckedChange={(checked) => handleCategoryChange(cat.id, checked as boolean)}
-                    disabled={!isCompatible.compatible && !isAuthorized}
                   />
                   <div className="grid gap-1.5 leading-none">
                     <Label

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Status, RideTypeEnum } from '@prisma/client';
 
@@ -120,50 +120,15 @@ export class AdminService {
   }
 
   async updateDriverCategories(driverId: string, categories: RideTypeEnum[]) {
-    // Fetch driver with vehicle to validate requirements
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
-      include: { Vehicle: true, User: true },
     });
 
     if (!driver) {
       throw new NotFoundException('Motorista não encontrado');
     }
 
-    // First, get all available ride types
     const allTypes = await this.prisma.rideTypeConfig.findMany();
-    
-    // Validate requirements
-    for (const cat of categories) {
-      const typeConfig = allTypes.find((t) => t.type === cat);
-      if (!typeConfig) continue;
-
-      if (typeConfig.requiresArmored && !driver.Vehicle?.isArmored) {
-        throw new BadRequestException(`A categoria ${typeConfig.name} requer veículo blindado.`);
-      }
-      if (typeConfig.requiresPetFriendly && !driver.Vehicle?.isPetFriendly) {
-        throw new BadRequestException(`A categoria ${typeConfig.name} requer veículo Pet Friendly.`);
-      }
-      if (typeConfig.type === 'EXECUTIVO' && !driver.Vehicle?.isLuxury) {
-         throw new BadRequestException(`A categoria ${typeConfig.name} requer veículo de luxo.`);
-      }
-      if (typeConfig.type === 'DELIVERY' && !driver.Vehicle?.deliveryCapable) {
-         throw new BadRequestException(`A categoria ${typeConfig.name} requer habilitação para entregas.`);
-      }
-      if (typeConfig.type === 'MOTO' && !driver.Vehicle?.isMotorcycle) {
-         throw new BadRequestException(`A categoria ${typeConfig.name} requer motocicleta.`);
-      }
-      if (typeConfig.type === 'MULHER' && driver.User.gender !== 'FEMALE') {
-         throw new BadRequestException(`A categoria ${typeConfig.name} é exclusiva para motoristas mulheres.`);
-      }
-       // Prevent assigning MOTO category to cars and vice-versa (basic check)
-      if (typeConfig.type !== 'MOTO' && driver.Vehicle?.isMotorcycle && typeConfig.type !== 'DELIVERY') {
-          // Assuming motorcycles can only do MOTO and DELIVERY
-           throw new BadRequestException(`Motocicletas só podem realizar corridas Moto ou Delivery.`);
-      }
-    }
-
-    // Transaction to update categories
     return this.prisma.$transaction(async (tx) => {
       // Get existing categories for this driver
       const existingTypes = await tx.driverRideType.findMany({
