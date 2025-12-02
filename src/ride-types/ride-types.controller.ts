@@ -578,9 +578,9 @@ export class RideTypesController {
     @Body() updateDto: UpdateDriverRideTypesDto,
     @User() user: any,
   ) {
-    if (user.driverId !== driverId && !this.isAdmin(user)) {
+    if (!this.isAdmin(user)) {
       throw new ForbiddenException(
-        'Você só pode atualizar seus próprios tipos de corrida',
+        'Apenas administradores podem modificar as categorias autorizadas',
       );
     }
 
@@ -657,8 +657,7 @@ export class RideTypesController {
   }
 
   private isAdmin(user: any): boolean {
-    // TODO: Implementar lógica de verificação de admin
-    return false;
+    return !!(user && user.isAdmin);
   }
 
   private async getUserInfo(userId: string): Promise<any> {

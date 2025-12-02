@@ -124,14 +124,14 @@ export default function DriverDetailsPage() {
         if (!vehicle.deliveryCapable) return { compatible: false, reason: 'Requer habilitação para entregas' };
         break;
       case 'MOTO':
-        if (!vehicle.isMotorcycle) return { compatible: false, reason: 'Requer motocicleta' };
+        if (!vehicle.isMotorcycle && vehicle.vehicleType !== 'MOTORCYCLE') return { compatible: false, reason: 'Requer motocicleta' };
         break;
       case 'MULHER':
         // Check driver gender if available
         if (driver.User.gender !== 'FEMALE') return { compatible: false, reason: 'Apenas motoristas mulheres' };
         break;
       case 'NORMAL':
-        if (vehicle.isMotorcycle) return { compatible: false, reason: 'Motos usam categoria Moto' };
+        if (vehicle.isMotorcycle || vehicle.vehicleType === 'MOTORCYCLE') return { compatible: false, reason: 'Motos usam categoria Moto' };
         break;
     }
     return { compatible: true };
@@ -275,9 +275,7 @@ export default function DriverDetailsPage() {
                   <div className="grid gap-1.5 leading-none">
                     <Label
                       htmlFor={cat.id}
-                      className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
-                        !isCompatible.compatible ? 'text-red-500' : ''
-                      }`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
                       {cat.label}
                       {isAuthorized && isActive !== undefined && (
