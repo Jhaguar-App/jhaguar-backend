@@ -200,7 +200,27 @@ export class DriverGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       if (result.activeRide) {
-        this.server.to(`ride:${result.activeRide.id}`).emit('ride:eta-update', {
+        const rideRoom = `ride:${result.activeRide.id}`;
+
+        this.logger.log(
+          `📍 Emitting location update to ride room ${rideRoom} - Driver: ${data.driverId}`,
+        );
+
+        this.server.to(rideRoom).emit('ride:driver-location-update', {
+          rideId: result.activeRide.id,
+          driverLocation: {
+            latitude: data.latitude,
+            longitude: data.longitude,
+            heading: data.heading,
+            speed: data.speed,
+            accuracy: data.accuracy,
+          },
+          estimatedArrival: result.activeRide.estimatedArrival,
+          distanceKm: result.activeRide.distanceKm,
+          timestamp: new Date(),
+        });
+
+        this.server.to(rideRoom).emit('ride:eta-update', {
           rideId: result.activeRide.id,
           driverLocation: {
             latitude: data.latitude,
