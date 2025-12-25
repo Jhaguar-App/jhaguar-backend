@@ -18,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { DriversService } from './drivers.service';
+import { DriverGateway } from './drivers.gateway';
 import { CreateDriverDto } from './dto/create-driver.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -31,7 +32,10 @@ import { DriverStatsDto, DriverStatsResponseDto } from './dto/driver-stats.dto';
 @ApiTags('Motoristas')
 @Controller('drivers')
 export class DriversController {
-  constructor(private readonly driversService: DriversService) {}
+  constructor(
+    private readonly driversService: DriversService,
+    private readonly driverGateway: DriverGateway,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -121,7 +125,65 @@ export class DriversController {
     @Body() updateLocationDto: UpdateDriverLocationDto,
     @User() user: any,
   ) {
-    return this.driversService.updateLocation(user.driverId, updateLocationDto);
+    const locationData = {
+      latitude: updateLocationDto.latitude,
+      longitude: updateLocationDto.longitude,
+      isOnline: updateLocationDto.isOnline ?? true,
+      isAvailable: updateLocationDto.isAvailable ?? false,
+      heading: updateLocationDto.heading,
+      speed: updateLocationDto.speed,
+      accuracy: updateLocationDto.accuracy,
+    };
+
+    const result = await this.driversService.updateLocationWithCache(
+      user.driverId,
+      locationData,
+    );
+
+    this.driverGateway.server.emit('driver:location-changed', {
+      driverId: user.driverId,
+      location: {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+        heading: locationData.heading,
+        speed: locationData.speed,
+        accuracy: locationData.accuracy,
+      },
+      isOnline: locationData.isOnline,
+      isAvailable: locationData.isAvailable,
+      timestamp: new Date(),
+    });
+
+    if (result.activeRide) {
+      const rideRoom = `ride:${result.activeRide.id}`;
+
+      this.driverGateway.server.to(rideRoom).emit('ride:driver-location-update', {
+        rideId: result.activeRide.id,
+        driverLocation: {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          heading: locationData.heading,
+          speed: locationData.speed,
+          accuracy: locationData.accuracy,
+        },
+        estimatedArrival: result.activeRide.estimatedArrival,
+        distanceKm: result.activeRide.distanceKm,
+        timestamp: new Date(),
+      });
+
+      this.driverGateway.server.to(rideRoom).emit('ride:eta-update', {
+        rideId: result.activeRide.id,
+        driverLocation: {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+        },
+        estimatedArrival: result.activeRide.estimatedArrival,
+        distanceKm: result.activeRide.distanceKm,
+        timestamp: new Date(),
+      });
+    }
+
+    return result;
   }
 
   @Get('online')
@@ -221,7 +283,65 @@ export class DriversController {
     @Param('driverId') driverId: string,
     @Body() updateLocationDto: UpdateDriverLocationDto,
   ) {
-    return this.driversService.updateLocation(driverId, updateLocationDto);
+    const locationData = {
+      latitude: updateLocationDto.latitude,
+      longitude: updateLocationDto.longitude,
+      isOnline: updateLocationDto.isOnline ?? true,
+      isAvailable: updateLocationDto.isAvailable ?? false,
+      heading: updateLocationDto.heading,
+      speed: updateLocationDto.speed,
+      accuracy: updateLocationDto.accuracy,
+    };
+
+    const result = await this.driversService.updateLocationWithCache(
+      driverId,
+      locationData,
+    );
+
+    this.driverGateway.server.emit('driver:location-changed', {
+      driverId,
+      location: {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+        heading: locationData.heading,
+        speed: locationData.speed,
+        accuracy: locationData.accuracy,
+      },
+      isOnline: locationData.isOnline,
+      isAvailable: locationData.isAvailable,
+      timestamp: new Date(),
+    });
+
+    if (result.activeRide) {
+      const rideRoom = `ride:${result.activeRide.id}`;
+
+      this.driverGateway.server.to(rideRoom).emit('ride:driver-location-update', {
+        rideId: result.activeRide.id,
+        driverLocation: {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          heading: locationData.heading,
+          speed: locationData.speed,
+          accuracy: locationData.accuracy,
+        },
+        estimatedArrival: result.activeRide.estimatedArrival,
+        distanceKm: result.activeRide.distanceKm,
+        timestamp: new Date(),
+      });
+
+      this.driverGateway.server.to(rideRoom).emit('ride:eta-update', {
+        rideId: result.activeRide.id,
+        driverLocation: {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+        },
+        estimatedArrival: result.activeRide.estimatedArrival,
+        distanceKm: result.activeRide.distanceKm,
+        timestamp: new Date(),
+      });
+    }
+
+    return result;
   }
 
   @Get(':driverId/stats')

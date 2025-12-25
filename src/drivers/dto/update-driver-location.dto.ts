@@ -41,4 +41,31 @@ export class UpdateDriverLocationDto {
   @IsOptional()
   @IsBoolean()
   isOnline?: boolean;
+
+  @ApiProperty({
+    description: 'Direção do movimento em graus',
+    example: 45.5,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  heading?: number;
+
+  @ApiProperty({
+    description: 'Velocidade em m/s',
+    example: 8.33,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  speed?: number;
+
+  @ApiProperty({
+    description: 'Precisão do GPS em metros',
+    example: 5.0,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  accuracy?: number;
 }
