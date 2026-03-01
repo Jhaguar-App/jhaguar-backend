@@ -14,6 +14,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
 import * as bcrypt from 'bcrypt';
 import { AuthAction, Status } from '@prisma/client';
 import { PaymentsService } from '../payments/payments.service';
@@ -44,19 +45,20 @@ export class AuthService {
   async register(registerDto: RegisterDto, metadata?: RequestMetadata) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: registerDto.email },
+      include: {
+        Driver: true,
+        Passenger: true,
+      },
     });
 
-    if (existingUser) {
-      await this.logAuthEvent({
-        email: registerDto.email,
-        action: AuthAction.REGISTER,
-        success: false,
-        failureReason: 'Email já está em uso',
-        ...metadata,
-      });
-      throw new ConflictException('E-mail já está em uso.');
+    if (!existingUser) {
+      return await this.createNewUser(registerDto, metadata);
     }
 
+    return await this.addProfileToExistingUser(existingUser, registerDto, metadata);
+  }
+
+  private async createNewUser(registerDto: RegisterDto, metadata?: RequestMetadata) {
     const existingPhone = await this.prisma.user.findUnique({
       where: { phone: registerDto.phone },
     });
@@ -119,8 +121,8 @@ export class AuthService {
                 year: Number(registerDto.vehicle.year),
                 color: registerDto.vehicle.color,
                 licensePlate: registerDto.vehicle.licensePlate,
-                vehicleType: 'ECONOMY', 
-                capacity: 4, 
+                vehicleType: 'ECONOMY',
+                capacity: 4,
                 registrationExpiryDate: new Date(
                   new Date().setFullYear(new Date().getFullYear() + 1),
                 ),
@@ -135,7 +137,7 @@ export class AuthService {
           return { user, passenger: null, driver };
         }
 
-        throw new Error('Tipo de usuário inválido');
+        throw new BadRequestException('Tipo de usuário inválido');
       },
       {
         timeout: 10000,
@@ -158,6 +160,123 @@ export class AuthService {
     });
 
     return this.createTokensForUser(result.user.id, result.user.email, metadata);
+  }
+
+  private async addProfileToExistingUser(
+    existingUser: any,
+    registerDto: RegisterDto,
+    metadata?: RequestMetadata,
+  ) {
+    if (!registerDto.currentPassword) {
+      await this.logAuthEvent({
+        userId: existingUser.id,
+        email: existingUser.email,
+        action: AuthAction.REGISTER,
+        success: false,
+        failureReason: 'Senha atual não fornecida ao adicionar perfil',
+        ...metadata,
+      });
+      throw new BadRequestException(
+        'Para adicionar um novo perfil, você deve fornecer sua senha atual.',
+      );
+    }
+
+    const passwordValid = await bcrypt.compare(
+      registerDto.currentPassword,
+      existingUser.password,
+    );
+
+    if (!passwordValid) {
+      await this.logAuthEvent({
+        userId: existingUser.id,
+        email: existingUser.email,
+        action: AuthAction.REGISTER,
+        success: false,
+        failureReason: 'Senha incorreta ao tentar adicionar perfil',
+        ...metadata,
+      });
+      throw new UnauthorizedException('Senha atual incorreta.');
+    }
+
+    if (registerDto.userType === 'PASSENGER' && existingUser.Passenger) {
+      throw new ConflictException('Você já está cadastrado como passageiro.');
+    }
+
+    if (registerDto.userType === 'DRIVER' && existingUser.Driver) {
+      throw new ConflictException('Você já está cadastrado como motorista.');
+    }
+
+    if (registerDto.phone !== existingUser.phone) {
+      throw new BadRequestException(
+        'O telefone informado não corresponde ao cadastrado nesta conta.',
+      );
+    }
+
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        if (registerDto.userType === 'PASSENGER') {
+          const passenger = await tx.passenger.create({
+            data: { userId: existingUser.id },
+          });
+          return { user: existingUser, passenger, driver: existingUser.Driver };
+        } else if (registerDto.userType === 'DRIVER') {
+          const driver = await tx.driver.create({
+            data: {
+              userId: existingUser.id,
+              licenseNumber: `TEMP-${existingUser.id.substring(0, 8)}`,
+              licenseExpiryDate: new Date(
+                new Date().setFullYear(new Date().getFullYear() + 1),
+              ),
+              accountStatus: Status.PENDING,
+              backgroundCheckStatus: Status.PENDING,
+            },
+          });
+
+          if (registerDto.vehicle) {
+            await tx.vehicle.create({
+              data: {
+                driverId: driver.id,
+                make: registerDto.vehicle.make,
+                model: registerDto.vehicle.model,
+                year: Number(registerDto.vehicle.year),
+                color: registerDto.vehicle.color,
+                licensePlate: registerDto.vehicle.licensePlate,
+                vehicleType: 'ECONOMY',
+                capacity: 4,
+                registrationExpiryDate: new Date(
+                  new Date().setFullYear(new Date().getFullYear() + 1),
+                ),
+                insuranceExpiryDate: new Date(
+                  new Date().setFullYear(new Date().getFullYear() + 1),
+                ),
+                inspectionStatus: Status.PENDING,
+              },
+            });
+          }
+
+          return { user: existingUser, passenger: existingUser.Passenger, driver };
+        }
+
+        throw new BadRequestException('Tipo de usuário inválido');
+      },
+      {
+        timeout: 10000,
+        isolationLevel: 'ReadCommitted',
+      },
+    );
+
+    await this.logAuthEvent({
+      userId: existingUser.id,
+      email: existingUser.email,
+      action: AuthAction.REGISTER,
+      success: true,
+      failureReason: `Perfil ${registerDto.userType} adicionado com sucesso`,
+      ...metadata,
+    });
+
+    this.clearUserCache(existingUser.id);
+
+    return this.createTokensForUser(existingUser.id, existingUser.email, metadata);
   }
 
   async login(loginDto: LoginDto, metadata?: RequestMetadata) {
@@ -652,7 +771,7 @@ export class AuthService {
     }
 
     const token = this.jwtService.sign(
-      { sub: user.id, type: 'reset' },
+      { sub: user.id, email: user.email, type: 'reset' },
       { expiresIn: '1h' },
     );
 
@@ -670,7 +789,7 @@ export class AuthService {
     return {
       success: true,
       message: 'Se o email existir, você receberá um link para redefinir sua senha.',
-      // debug_token: token, // Remover em produção
+      resetToken: this.configService.get('NODE_ENV') === 'development' ? token : undefined,
     };
   }
 
@@ -766,6 +885,69 @@ export class AuthService {
     return {
       success: true,
       message: 'Senha alterada com sucesso.',
+    };
+  }
+
+  async changeEmail(
+    userId: string,
+    changeEmailDto: ChangeEmailDto,
+    metadata?: RequestMetadata,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      changeEmailDto.currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      await this.logAuthEvent({
+        userId: user.id,
+        email: user.email,
+        action: AuthAction.PASSWORD_CHANGE,
+        success: false,
+        failureReason: 'Senha atual incorreta ao tentar alterar e-mail',
+        ...metadata,
+      });
+      throw new UnauthorizedException('Senha atual incorreta');
+    }
+
+    const emailExists = await this.prisma.user.findUnique({
+      where: { email: changeEmailDto.newEmail.toLowerCase().trim() },
+    });
+
+    if (emailExists && emailExists.id !== userId) {
+      throw new ConflictException('Este e-mail já está em uso');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: changeEmailDto.newEmail.toLowerCase().trim(),
+      },
+    });
+
+    await this.logAuthEvent({
+      userId: user.id,
+      email: changeEmailDto.newEmail,
+      action: AuthAction.PASSWORD_CHANGE,
+      success: true,
+      failureReason: 'E-mail alterado com sucesso',
+      ...metadata,
+    });
+
+    this.userInfoCache.delete(userId);
+
+    return {
+      success: true,
+      message: 'E-mail atualizado com sucesso',
+      email: updatedUser.email,
     };
   }
 

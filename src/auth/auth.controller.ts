@@ -9,6 +9,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User } from './decorator/user.decorator';
 
@@ -152,5 +153,28 @@ export class AuthController {
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(user.id, changePasswordDto);
+  }
+
+  @Post('change-email')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle(3, 60)
+  @ApiOperation({ summary: 'Alterar e-mail do usuário autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'E-mail alterado com sucesso',
+  })
+  @ApiResponse({ status: 401, description: 'Senha atual incorreta ou não autenticado' })
+  @ApiResponse({ status: 409, description: 'E-mail já está em uso' })
+  async changeEmail(
+    @User('id') userId: string,
+    @Body() changeEmailDto: ChangeEmailDto,
+    @Ip() ip: string,
+    @Req() req: Request,
+  ) {
+    return this.authService.changeEmail(userId, changeEmailDto, {
+      ipAddress: ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 }
