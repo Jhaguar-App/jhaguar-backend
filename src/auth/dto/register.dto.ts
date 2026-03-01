@@ -146,4 +146,13 @@ export class RegisterDto {
   })
   @IsOptional()
   vehicle?: VehicleDto;
+
+  @ApiProperty({
+    description: 'Senha atual (obrigatória ao adicionar perfil a conta existente)',
+    example: 'SenhaAtual@123',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  currentPassword?: string;
 }
