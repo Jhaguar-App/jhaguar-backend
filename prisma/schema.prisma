@@ -30,35 +30,41 @@ model ChatMessage {
 }
 
 model Driver {
-  id                    String              @id @default(uuid())
-  userId                String              @unique
-  licenseNumber         String              @unique
+  id                    String                @id @default(uuid())
+  userId                String                @unique
+  licenseNumber         String                @unique
   licenseExpiryDate     DateTime
-  isAvailable           Boolean             @default(false)
+  isAvailable           Boolean               @default(false)
   currentLatitude       Float?
   currentLongitude      Float?
-  averageRating         Float               @default(0)
-  totalRides            Int                 @default(0)
-  accountStatus         Status              @default(PENDING)
-  backgroundCheckStatus Status              @default(PENDING)
+  averageRating         Float                 @default(0)
+  totalRides            Int                   @default(0)
+  accountStatus         Status                @default(PENDING)
+  backgroundCheckStatus Status                @default(PENDING)
   backgroundCheckDate   DateTime?
-  isOnline              Boolean             @default(false)
-  acceptsFemaleOnly     Boolean             @default(false)
+  isOnline              Boolean               @default(false)
+  acceptsFemaleOnly     Boolean               @default(false)
   bankAccount           String?
-  isActiveTrip          Boolean             @default(false)
+  isActiveTrip          Boolean               @default(false)
   lastLocationUpdate    DateTime?
-  isPetFriendly         Boolean             @default(false)
-  User                  User                @relation(fields: [userId], references: [id])
+  isPetFriendly         Boolean               @default(false)
+  currentSubscriptionId String?               @unique
+  subscriptionStatus    SubscriptionStatus?
+  subscriptionExpiresAt DateTime?
+  User                  User                  @relation(fields: [userId], references: [id])
   DriverDocument        DriverDocument[]
   DriverLocation        DriverLocation[]
   DriverRideType        DriverRideType[]
   Ride                  Ride[]
   RideStatusHistory     RideStatusHistory[]
   Vehicle               Vehicle?
+  subscriptions         DriverSubscription[]  @relation("DriverSubscriptions")
+  currentSubscription   DriverSubscription?   @relation("CurrentSubscription", fields: [currentSubscriptionId], references: [id])
 
   @@index([accountStatus])
   @@index([currentLatitude, currentLongitude])
   @@index([isOnline, isAvailable])
+  @@index([currentSubscriptionId])
 }
 
 model DriverDocument {
@@ -133,22 +139,15 @@ model Passenger {
 }
 
 model Payment {
-  id                     String        @id @default(uuid())
-  rideId                 String        @unique
-  amount                 Float
-  currency               String        @default("BRL")
-  status                 PaymentStatus @default(PENDING)
-  paymentIntentId        String?
-  stripeCustomerId       String?
-  receiptUrl             String?
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-  confirmedByDriver      Boolean       @default(false)
-  driverConfirmationTime DateTime?
-  driverNotes            String?
-  method                 PaymentMethod @default(CASH)
-  transactionId          String?
-  Ride                   Ride          @relation(fields: [rideId], references: [id])
+  id        String        @id @default(uuid())
+  rideId    String        @unique
+  amount    Float
+  currency  String        @default("BRL")
+  status    PaymentStatus @default(COMPLETED)
+  method    PaymentMethod @default(CASH)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  Ride      Ride          @relation(fields: [rideId], references: [id])
 
   @@index([method])
   @@index([status])
@@ -432,6 +431,56 @@ model Vehicle {
   Driver                 Driver      @relation(fields: [driverId], references: [id])
 }
 
+model SubscriptionPlan {
+  id            String                 @id @default(uuid())
+  type          SubscriptionPlanType
+  name          String
+  description   String?
+  price         Float
+  durationDays  Int
+  isActive      Boolean                @default(true)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  subscriptions DriverSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model DriverSubscription {
+  id              String             @id @default(uuid())
+  driverId        String
+  planId          String
+  status          SubscriptionStatus @default(PENDING_PAYMENT)
+  startDate       DateTime?
+  endDate         DateTime?
+  paymentIntentId String?
+  amount          Float
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  driver          Driver             @relation("DriverSubscriptions", fields: [driverId], references: [id])
+  plan            SubscriptionPlan   @relation(fields: [planId], references: [id])
+  currentDriver   Driver?            @relation("CurrentSubscription")
+
+  @@index([driverId])
+  @@index([planId])
+  @@index([endDate])
+  @@map("driver_subscriptions")
+}
+
+enum SubscriptionPlanType {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING_PAYMENT
+}
+
 enum DocumentType {
   DRIVERS_LICENSE
   VEHICLE_REGISTRATION
@@ -477,6 +526,7 @@ enum PaymentMethod {
 enum PaymentStatus {
   PENDING
   PAID
+  COMPLETED
   FAILED
   REFUNDED
 }

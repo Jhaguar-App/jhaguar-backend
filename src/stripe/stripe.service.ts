@@ -325,45 +325,35 @@ export class StripeService {
     paymentIntent: Stripe.PaymentIntent,
   ): Promise<void> {
     try {
-      // Buscar transação pendente
-      const transaction = await this.prisma.transaction.findFirst({
+      const subscription = await this.prisma.driverSubscription.findFirst({
         where: {
-          stripePaymentIntentId: paymentIntent.id,
-          status: 'PENDING',
+          paymentIntentId: paymentIntent.id,
+          status: 'PENDING_PAYMENT',
         },
-        include: { UserWallet: true },
       });
 
-      if (!transaction) {
-        this.logger.warn(
-          `Transação não encontrada para PaymentIntent: ${paymentIntent.id}`,
+      if (subscription) {
+        this.logger.log(
+          `Confirmando pagamento de plano: ${paymentIntent.id}`,
+        );
+
+        const subscriptionsService = await import('../subscriptions/subscriptions.service').then(
+          m => new m.SubscriptionsService(
+            this.prisma,
+            this,
+          ),
+        );
+
+        await subscriptionsService.confirmPlanPayment(paymentIntent.id);
+
+        this.logger.log(
+          `Plano ativado via webhook: ${paymentIntent.id}`,
         );
         return;
       }
 
-      const amount = paymentIntent.amount / 100;
-
-      // Atualizar transação
-      await this.prisma.transaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: 'COMPLETED',
-          processedAt: new Date(),
-        },
-      });
-
-      // Atualizar saldo da carteira
-      if (transaction.UserWallet) {
-        await this.prisma.userWallet.update({
-          where: { id: transaction.UserWallet.id },
-          data: {
-            balance: transaction.UserWallet.balance + amount,
-          },
-        });
-      }
-
-      this.logger.log(
-        `Pagamento confirmado via webhook: ${paymentIntent.id} - R$ ${amount}`,
+      this.logger.warn(
+        `Nenhuma assinatura encontrada para PaymentIntent: ${paymentIntent.id}`,
       );
     } catch (error) {
       this.logger.error('Erro ao processar sucesso do pagamento:', error);

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
   Inject,
   forwardRef,
@@ -290,6 +291,7 @@ export class DriversService {
   async toggleAvailability(driverId: string) {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
+      include: { currentSubscription: true },
     });
 
     if (!driver) {
@@ -298,10 +300,16 @@ export class DriversService {
       );
     }
 
+    const newAvailabilityState = !driver.isAvailable;
+
+    if (newAvailabilityState) {
+      await this.checkSubscriptionStatus(driver);
+    }
+
     const updatedDriver = await this.prisma.driver.update({
       where: { id: driverId },
       data: {
-        isAvailable: !driver.isAvailable,
+        isAvailable: newAvailabilityState,
       },
     });
 
@@ -355,12 +363,17 @@ export class DriversService {
   ) {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
+      include: { currentSubscription: true },
     });
 
     if (!driver) {
       throw new NotFoundException(
         `Motorista com ID ${driverId} não encontrado`,
       );
+    }
+
+    if (updateData.isOnline === true || updateData.isAvailable === true) {
+      await this.checkSubscriptionStatus(driver);
     }
 
     const updateFields: any = {
@@ -899,6 +912,43 @@ export class DriversService {
         data: null,
         message: error instanceof Error ? error.message : 'Erro interno',
       };
+    }
+  }
+
+  private async checkSubscriptionStatus(driver: any) {
+    if (!driver.currentSubscription || driver.currentSubscription.status !== 'ACTIVE') {
+      throw new ForbiddenException({
+        message: 'Você precisa de um plano ativo para ficar online',
+        code: 'SUBSCRIPTION_REQUIRED',
+        requiresAction: 'PURCHASE_PLAN',
+      });
+    }
+
+    const now = new Date();
+    if (driver.currentSubscription.endDate < now) {
+      await this.prisma.$transaction([
+        this.prisma.driverSubscription.update({
+          where: { id: driver.currentSubscription.id },
+          data: { status: 'EXPIRED' },
+        }),
+        this.prisma.driver.update({
+          where: { id: driver.id },
+          data: {
+            currentSubscriptionId: null,
+            subscriptionStatus: 'EXPIRED',
+            subscriptionExpiresAt: null,
+          },
+        }),
+      ]);
+
+      throw new ForbiddenException({
+        message: 'Seu plano expirou. Renove para continuar',
+        code: 'SUBSCRIPTION_EXPIRED',
+        requiresAction: 'RENEW_PLAN',
+        details: {
+          expiredAt: driver.currentSubscription.endDate,
+        },
+      });
     }
   }
 }

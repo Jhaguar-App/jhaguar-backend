@@ -24,6 +24,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -50,10 +51,10 @@ import { AdminModule } from './admin/admin.module';
     RidesModule,
     MapsModule,
     PaymentsModule,
+    SubscriptionsModule,
     RatingsModule,
     DocumentsModule,
     NotificationsModule,
-    StripeModule,
     StripeModule,
     ChatModule,
     AdminModule,
