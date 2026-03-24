@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateChargeDto } from './dto';
+import { CreateChargeDto, CreditCardPaymentDto } from './dto';
 import {
   AsaasCharge,
   AsaasCustomer,
@@ -157,6 +157,45 @@ export class AsaasService {
       return { charge, pixQrCode };
     } catch (error) {
       this.logger.error('Erro ao criar cobrança:', error);
+      throw error;
+    }
+  }
+
+  async payWithCreditCard(
+    chargeId: string,
+    creditCard: CreditCardPaymentDto,
+  ): Promise<AsaasCharge> {
+    try {
+      const creditCardData = {
+        creditCard: {
+          holderName: creditCard.holderName,
+          number: creditCard.cardNumber,
+          expiryMonth: creditCard.expiryMonth,
+          expiryYear: creditCard.expiryYear,
+          ccv: creditCard.cvv,
+        },
+        creditCardHolderInfo: {
+          name: creditCard.holderName,
+          cpfCnpj: creditCard.cpfCnpj,
+          postalCode: creditCard.postalCode,
+          addressNumber: creditCard.addressNumber,
+          phone: creditCard.phone,
+        },
+      };
+
+      const charge = await this.makeRequest<AsaasCharge>(
+        'POST',
+        `/payments/${chargeId}/payWithCreditCard`,
+        creditCardData,
+      );
+
+      this.logger.log(
+        `Pagamento com cartão processado: ${chargeId} - Status: ${charge.status}`,
+      );
+
+      return charge;
+    } catch (error) {
+      this.logger.error('Erro ao processar pagamento com cartão:', error);
       throw error;
     }
   }

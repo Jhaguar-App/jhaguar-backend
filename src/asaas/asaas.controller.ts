@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { CreateChargeDto } from './dto';
+import { CreateChargeDto, CreditCardPaymentDto } from './dto';
 import { AsaasService } from './asaas.service';
 import { AsaasWebhookEvent } from './interfaces/asaas.interfaces';
 
@@ -67,6 +67,63 @@ export class AsaasController {
       return {
         success: false,
         message: 'Erro desconhecido ao criar cobrança',
+        data: null,
+      };
+    }
+  }
+
+  @Post('pay-credit-card')
+  @ApiOperation({
+    summary: 'Pagar cobrança com cartão de crédito',
+    description: 'Processa pagamento de uma cobrança existente com cartão de crédito',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pagamento processado com sucesso',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos ou pagamento recusado',
+  })
+  async payWithCreditCard(
+    @Body()
+    body: {
+      chargeId: string;
+      creditCard: CreditCardPaymentDto;
+    },
+  ) {
+    try {
+      this.logger.log(`Processando pagamento com cartão para cobrança: ${body.chargeId}`);
+
+      const result = await this.asaasService.payWithCreditCard(
+        body.chargeId,
+        body.creditCard,
+      );
+
+      return {
+        success: true,
+        data: {
+          chargeId: result.id,
+          status: result.status,
+          value: result.value,
+          paymentDate: result.paymentDate,
+        },
+        message: 'Pagamento processado com sucesso',
+      };
+    } catch (error) {
+      this.logger.error('Erro ao processar pagamento com cartão:', error);
+
+      if (error instanceof Error) {
+        return {
+          success: false,
+          message: error.message,
+          data: null,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Erro desconhecido ao processar pagamento',
         data: null,
       };
     }
