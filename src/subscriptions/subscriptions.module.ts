@@ -6,12 +6,12 @@ import { AdminSubscriptionsController } from './admin-subscriptions.controller';
 import { ActiveSubscriptionGuard } from './guards/active-subscription.guard';
 import { SubscriptionExpiryJob } from './jobs/subscription-expiry.job';
 import { PrismaModule } from '../prisma/prisma.module';
-import { StripeModule } from '../stripe/stripe.module';
+import { AsaasModule } from '../asaas/asaas.module';
 
 @Module({
   imports: [
     PrismaModule,
-    StripeModule,
+    AsaasModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [

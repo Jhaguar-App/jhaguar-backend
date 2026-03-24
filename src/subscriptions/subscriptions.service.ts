@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StripeService } from '../stripe/stripe.service';
+import { AsaasService } from '../asaas/asaas.service';
+import { AsaasBillingType } from '../asaas/interfaces/asaas.interfaces';
 import { CreatePlanDto, UpdatePlanDto, PurchasePlanDto, GrantPlanDto } from './dto';
 import { SubscriptionPlanType, SubscriptionStatus } from '@prisma/client';
 import { addDays } from 'date-fns';
@@ -11,7 +12,7 @@ export class SubscriptionsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly stripeService: StripeService,
+    private readonly asaasService: AsaasService,
   ) {}
 
   async getAvailablePlans() {
@@ -38,7 +39,10 @@ export class SubscriptionsService {
   async purchasePlan(driverId: string, dto: PurchasePlanDto) {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
-      include: { currentSubscription: true },
+      include: {
+        currentSubscription: true,
+        User: true,
+      },
     });
 
     if (!driver) {
@@ -60,15 +64,14 @@ export class SubscriptionsService {
       }
     }
 
-    const paymentIntent = await this.stripeService.createPaymentIntent({
-      amount: plan.price,
-      userId: driver.userId,
+    const chargeResult = await this.asaasService.createCharge({
+      name: `${driver.User.firstName} ${driver.User.lastName}`,
+      email: driver.User.email,
+      phone: driver.User.phone,
+      value: plan.price,
+      billingType: dto.billingType || AsaasBillingType.PIX,
       description: `Assinatura ${plan.name}`,
-      metadata: {
-        planId: plan.id,
-        driverId: driver.id,
-        planType: plan.type,
-      },
+      externalReference: `driver_${driverId}_plan_${plan.id}`,
     });
 
     const subscription = await this.prisma.driverSubscription.create({
@@ -77,20 +80,25 @@ export class SubscriptionsService {
         planId: plan.id,
         status: 'PENDING_PAYMENT',
         amount: plan.price,
-        paymentIntentId: paymentIntent.id,
+        paymentIntentId: chargeResult.charge.id,
       },
       include: {
         plan: true,
       },
     });
 
-    this.logger.log(`Payment intent created for driver ${driverId}, subscription ${subscription.id}`);
+    this.logger.log(`ASAAS charge created for driver ${driverId}, subscription ${subscription.id}`);
 
     return {
       subscriptionId: subscription.id,
-      clientSecret: paymentIntent.client_secret,
+      chargeId: chargeResult.charge.id,
       amount: plan.price,
       planName: plan.name,
+      billingType: chargeResult.charge.billingType,
+      status: chargeResult.charge.status,
+      invoiceUrl: chargeResult.charge.invoiceUrl,
+      bankSlipUrl: chargeResult.charge.bankSlipUrl,
+      pixQrCode: chargeResult.pixQrCode,
     };
   }
 

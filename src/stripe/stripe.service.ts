@@ -325,35 +325,11 @@ export class StripeService {
     paymentIntent: Stripe.PaymentIntent,
   ): Promise<void> {
     try {
-      const subscription = await this.prisma.driverSubscription.findFirst({
-        where: {
-          paymentIntentId: paymentIntent.id,
-          status: 'PENDING_PAYMENT',
-        },
-      });
-
-      if (subscription) {
-        this.logger.log(
-          `Confirmando pagamento de plano: ${paymentIntent.id}`,
-        );
-
-        const subscriptionsService = await import('../subscriptions/subscriptions.service').then(
-          m => new m.SubscriptionsService(
-            this.prisma,
-            this,
-          ),
-        );
-
-        await subscriptionsService.confirmPlanPayment(paymentIntent.id);
-
-        this.logger.log(
-          `Plano ativado via webhook: ${paymentIntent.id}`,
-        );
-        return;
-      }
-
+      this.logger.log(
+        `Pagamento Stripe bem-sucedido: ${paymentIntent.id}`,
+      );
       this.logger.warn(
-        `Nenhuma assinatura encontrada para PaymentIntent: ${paymentIntent.id}`,
+        `Assinaturas agora são processadas via ASAAS. PaymentIntent: ${paymentIntent.id}`,
       );
     } catch (error) {
       this.logger.error('Erro ao processar sucesso do pagamento:', error);
