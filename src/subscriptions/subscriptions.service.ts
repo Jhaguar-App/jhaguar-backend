@@ -57,7 +57,7 @@ export class SubscriptionsService {
 
     if (driver.currentSubscription && driver.currentSubscription.status === 'ACTIVE') {
       const now = new Date();
-      if (driver.currentSubscription.endDate > now) {
+      if (driver.currentSubscription.endDate && driver.currentSubscription.endDate > now) {
         throw new BadRequestException(
           'Você já possui um plano ativo. Aguarde a expiração para comprar um novo.'
         );
@@ -167,7 +167,7 @@ export class SubscriptionsService {
     }
 
     const now = new Date();
-    if (driver.currentSubscription.endDate < now) {
+    if (!driver.currentSubscription.endDate || driver.currentSubscription.endDate < now) {
       await this.expireSubscription(driver.currentSubscription.id);
       return {
         hasActiveSubscription: false,
@@ -296,7 +296,7 @@ export class SubscriptionsService {
 
     if (driver.currentSubscription && driver.currentSubscription.status === 'ACTIVE') {
       const now = new Date();
-      if (driver.currentSubscription.endDate > now) {
+      if (driver.currentSubscription.endDate && driver.currentSubscription.endDate > now) {
         throw new BadRequestException('Motorista já possui um plano ativo');
       }
     }
