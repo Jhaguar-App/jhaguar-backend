@@ -58,7 +58,7 @@ export class PaymentsService {
     method?: PaymentMethod;
   }) {
     const where: any = {
-      ride: {
+      Ride: {
         OR: [
           { passengerId: userId },
           { driver: { userId } },
@@ -83,7 +83,7 @@ export class PaymentsService {
     const payments = await this.prisma.payment.findMany({
       where,
       include: {
-        ride: {
+        Ride: {
           select: {
             originAddress: true,
             destinationAddress: true,
@@ -106,7 +106,7 @@ export class PaymentsService {
 
     const payments = await this.prisma.payment.findMany({
       where: {
-        ride: { driverId },
+        Ride: { driverId },
         createdAt: { gte: startDate },
         status: 'COMPLETED',
       },
@@ -192,19 +192,19 @@ export class PaymentsService {
     };
 
     if (filters.driverId) {
-      where.ride = { driverId: filters.driverId };
+      where.Ride = { driverId: filters.driverId };
     }
 
     const payments = await this.prisma.payment.findMany({
       where,
       include: {
-        ride: {
+        Ride: {
           select: {
             id: true,
             originAddress: true,
             destinationAddress: true,
             createdAt: true,
-            driver: {
+            Driver: {
               select: {
                 id: true,
                 User: {
@@ -266,5 +266,89 @@ export class PaymentsService {
       acc[method].total += payment.amount;
       return acc;
     }, {} as Record<PaymentMethod, { count: number; total: number }>);
+  }
+
+  async getOrCreateWallet(userId: string) {
+    let wallet = await this.prisma.userWallet.findUnique({
+      where: { userId },
+    });
+
+    if (!wallet) {
+      wallet = await this.prisma.userWallet.create({
+        data: {
+          userId,
+          balance: 0,
+        },
+      });
+      this.logger.log(`Carteira criada para usuário ${userId}`);
+    }
+
+    return wallet;
+  }
+
+  async getWalletBalance(userId: string) {
+    const wallet = await this.getOrCreateWallet(userId);
+    return wallet.balance;
+  }
+
+  async getPaymentMethods(userId: string) {
+    const wallet = await this.getOrCreateWallet(userId);
+
+    return {
+      wallet: {
+        available: true,
+        balance: wallet.balance,
+      },
+      creditCard: {
+        available: true,
+      },
+      debitCard: {
+        available: true,
+      },
+      pix: {
+        available: true,
+      },
+      cash: {
+        available: true,
+      },
+    };
+  }
+
+  async processRidePaymentByMethod(data: {
+    rideId: string;
+    userId: string;
+    amount: number;
+    method: PaymentMethod;
+  }) {
+    const { rideId, userId, amount, method } = data;
+
+    try {
+      const payment = await this.prisma.payment.create({
+        data: {
+          rideId,
+          amount,
+          method,
+          status: 'COMPLETED',
+        },
+      });
+
+      await this.prisma.ride.update({
+        where: { id: rideId },
+        data: { paymentStatus: 'PAID' },
+      });
+
+      this.logger.log(`Pagamento processado: ${rideId} - ${method} - R$ ${amount}`);
+
+      return {
+        success: true,
+        payment,
+      };
+    } catch (error) {
+      this.logger.error(`Erro ao processar pagamento: ${error.message}`);
+      return {
+        success: false,
+        message: error.message || 'Erro ao processar pagamento',
+      };
+    }
   }
 }

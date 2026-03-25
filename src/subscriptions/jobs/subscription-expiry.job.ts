@@ -85,7 +85,9 @@ export class SubscriptionExpiryJob {
       }
 
       for (const subscription of expiringSubscriptions) {
-        const daysLeft = differenceInDays(subscription.endDate, new Date());
+        const daysLeft = subscription.endDate
+          ? differenceInDays(subscription.endDate, new Date())
+          : 0;
 
         this.logger.log(
           `Subscription ${subscription.id} expires in ${daysLeft} days (driver: ${subscription.driverId})`

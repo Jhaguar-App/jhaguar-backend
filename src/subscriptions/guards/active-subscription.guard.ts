@@ -54,7 +54,7 @@ export class ActiveSubscriptionGuard implements CanActivate {
     }
 
     const now = new Date();
-    if (subscription.endDate < now) {
+    if (!subscription.endDate || subscription.endDate < now) {
       await this.prisma.$transaction([
         this.prisma.driverSubscription.update({
           where: { id: subscription.id },

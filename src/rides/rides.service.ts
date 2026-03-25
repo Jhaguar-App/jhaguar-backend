@@ -789,18 +789,16 @@ export class RidesService {
           );
 
           const paymentResult =
-            await this.paymentsService.processRidePaymentByMethod(
-              PaymentMethod.WALLET_BALANCE,
-              ride.id,
-              ride.Passenger.userId,
-              ride.Driver.userId,
-              ride.finalPrice,
-              `Automatic payment for completed ride`,
-            );
+            await this.paymentsService.processRidePaymentByMethod({
+              rideId: ride.id,
+              userId: ride.Passenger.userId,
+              amount: ride.finalPrice,
+              method: PaymentMethod.WALLET_BALANCE,
+            });
 
           if (paymentResult.success) {
             this.logger.log(
-              `✅ Wallet payment processed successfully for ride ${ride.id}: R$ ${ride.finalPrice} (net: R$ ${paymentResult.data.netAmount}, fee: R$ ${paymentResult.data.platformFee})`,
+              `✅ Wallet payment processed successfully for ride ${ride.id}: R$ ${ride.finalPrice}`,
             );
           } else {
             this.logger.error(
@@ -1191,9 +1189,6 @@ export class RidesService {
         ? {
             method: ride.Payment.method,
             status: ride.Payment.status,
-            confirmedByDriver: ride.Payment.confirmedByDriver,
-            confirmationTime: ride.Payment.driverConfirmationTime,
-            driverNotes: ride.Payment.driverNotes,
             requiresAction: this.getPaymentRequiredAction(ride),
           }
         : null,
@@ -1256,14 +1251,8 @@ export class RidesService {
 
     switch (ride.Payment.status) {
       case PaymentStatus.PENDING:
-        if (!ride.Payment.confirmedByDriver) {
-          return 'AWAITING_DRIVER_CONFIRMATION';
-        }
-        break;
+        return 'AWAITING_DRIVER_CONFIRMATION';
       case PaymentStatus.PAID:
-        if (!ride.Payment.confirmedByDriver) {
-          return 'AWAITING_DRIVER_CONFIRMATION';
-        }
         break;
       case PaymentStatus.FAILED:
         return 'PAYMENT_FAILED';
@@ -2005,8 +1994,8 @@ export class RidesService {
       // 🔥 Process payment synchronously (critical for completion)
       let paymentResult: {
         success: boolean;
-        data: any;
-        message: string;
+        payment?: any;
+        message?: string;
       } | null = null;
 
       if (ride.Payment?.method) {
@@ -2016,18 +2005,16 @@ export class RidesService {
 
         try {
           // Process payment outside the main transaction to prevent timeout
-          paymentResult = await this.paymentsService.processRidePaymentByMethod(
-            ride.Payment.method,
+          paymentResult = await this.paymentsService.processRidePaymentByMethod({
             rideId,
-            ride.Passenger.User.id, // passengerId
-            (ride.Driver?.User.id || ride.driverId) as string, // driverId
-            ride.finalPrice || 0,
-            `Corrida ${rideId.substring(0, 8)}`,
-          );
+            userId: ride.Passenger.User.id,
+            amount: ride.finalPrice || 0,
+            method: ride.Payment.method,
+          });
 
-          if (!paymentResult.success) {
+          if (!paymentResult || !paymentResult.success) {
             this.logger.error(
-              `❌ Payment failed for ride ${rideId}: ${paymentResult.message}`,
+              `❌ Payment failed for ride ${rideId}: ${paymentResult?.message || 'Unknown error'}`,
             );
 
             // ROLLBACK: Revert ride status if payment fails
@@ -2042,7 +2029,7 @@ export class RidesService {
             );
 
             throw new BadRequestException(
-              `Falha no pagamento: ${paymentResult.message}`,
+              `Falha no pagamento: ${paymentResult?.message || 'Erro desconhecido'}`,
             );
           }
 
@@ -2051,9 +2038,6 @@ export class RidesService {
             where: { id: ride.Payment.id },
             data: {
               status: PaymentStatus.PAID,
-              confirmedByDriver: true,
-              driverConfirmationTime: new Date(),
-              driverNotes: `Automatic payment processing - ${ride.Payment.method}`,
             },
           });
 
