@@ -325,45 +325,11 @@ export class StripeService {
     paymentIntent: Stripe.PaymentIntent,
   ): Promise<void> {
     try {
-      // Buscar transação pendente
-      const transaction = await this.prisma.transaction.findFirst({
-        where: {
-          stripePaymentIntentId: paymentIntent.id,
-          status: 'PENDING',
-        },
-        include: { UserWallet: true },
-      });
-
-      if (!transaction) {
-        this.logger.warn(
-          `Transação não encontrada para PaymentIntent: ${paymentIntent.id}`,
-        );
-        return;
-      }
-
-      const amount = paymentIntent.amount / 100;
-
-      // Atualizar transação
-      await this.prisma.transaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: 'COMPLETED',
-          processedAt: new Date(),
-        },
-      });
-
-      // Atualizar saldo da carteira
-      if (transaction.UserWallet) {
-        await this.prisma.userWallet.update({
-          where: { id: transaction.UserWallet.id },
-          data: {
-            balance: transaction.UserWallet.balance + amount,
-          },
-        });
-      }
-
       this.logger.log(
-        `Pagamento confirmado via webhook: ${paymentIntent.id} - R$ ${amount}`,
+        `Pagamento Stripe bem-sucedido: ${paymentIntent.id}`,
+      );
+      this.logger.warn(
+        `Assinaturas agora são processadas via ASAAS. PaymentIntent: ${paymentIntent.id}`,
       );
     } catch (error) {
       this.logger.error('Erro ao processar sucesso do pagamento:', error);

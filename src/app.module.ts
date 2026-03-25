@@ -19,11 +19,13 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { MapsModule } from './maps/maps.module';
 import { RideTypesModule } from './ride-types/ride-types.module';
 import { StripeModule } from './stripe/stripe.module';
+import { AsaasModule } from './asaas/asaas.module';
 import { RedisModule } from './common/redis/redis.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -50,11 +52,12 @@ import { AdminModule } from './admin/admin.module';
     RidesModule,
     MapsModule,
     PaymentsModule,
+    SubscriptionsModule,
     RatingsModule,
     DocumentsModule,
     NotificationsModule,
     StripeModule,
-    StripeModule,
+    AsaasModule,
     ChatModule,
     AdminModule,
   ],
