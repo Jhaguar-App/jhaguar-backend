@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SubscriptionsService } from './subscriptions.service';
 import { PurchasePlanDto } from './dto';
 
 @Controller('subscriptions')
+@UseGuards(JwtAuthGuard)
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
@@ -41,14 +43,6 @@ export class SubscriptionsController {
   }
 
   private async getDriverFromUser(userId: string) {
-    const driver = await this.subscriptionsService['prisma'].driver.findUnique({
-      where: { userId },
-    });
-
-    if (!driver) {
-      throw new Error('Motorista não encontrado');
-    }
-
-    return driver;
+    return this.subscriptionsService.getDriverFromUserId(userId);
   }
 }

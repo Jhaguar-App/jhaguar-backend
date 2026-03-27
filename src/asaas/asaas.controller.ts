@@ -4,14 +4,20 @@ import {
   Body,
   BadRequestException,
   Logger,
+  UseGuards,
+  SetMetadata,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateChargeDto, CreditCardPaymentDto } from './dto';
 import { AsaasService } from './asaas.service';
 import { AsaasWebhookEvent } from './interfaces/asaas.interfaces';
 
+export const Public = () => SetMetadata('isPublic', true);
+
 @ApiTags('ASAAS')
 @Controller('asaas')
+@UseGuards(JwtAuthGuard)
 export class AsaasController {
   private readonly logger = new Logger(AsaasController.name);
 
@@ -155,6 +161,7 @@ export class AsaasController {
   }
 
   @Post('webhook')
+  @Public()
   @ApiOperation({
     summary: 'Webhook do ASAAS',
     description: 'Endpoint para receber eventos do ASAAS',

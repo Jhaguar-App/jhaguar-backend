@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { SubscriptionsService } from './subscriptions.service';
 import { CreatePlanDto, UpdatePlanDto, GrantPlanDto } from './dto';
 
 @Controller('subscriptions/admin')
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminSubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
@@ -31,36 +34,9 @@ export class AdminSubscriptionsController {
     @Query('planType') planType?: string,
     @Query('status') status?: string,
   ) {
-    const where: any = {};
-
-    if (planType) {
-      where.plan = { type: planType };
-    }
-
-    if (status) {
-      where.status = status;
-    } else {
-      where.status = 'ACTIVE';
-    }
-
-    return this.subscriptionsService['prisma'].driverSubscription.findMany({
-      where,
-      include: {
-        driver: {
-          include: {
-            User: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-                phone: true,
-              },
-            },
-          },
-        },
-        plan: true,
-      },
-      orderBy: { createdAt: 'desc' },
+    return this.subscriptionsService.getActiveSubscriptionsWithDetails({
+      planType,
+      status,
     });
   }
 

@@ -3,9 +3,12 @@ import {
   BadRequestException,
   Logger,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreateChargeDto, CreditCardPaymentDto } from './dto';
 import {
   AsaasCharge,
@@ -27,6 +30,8 @@ export class AsaasService {
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => SubscriptionsService))
+    private readonly subscriptionsService: SubscriptionsService,
   ) {
     const apiKey = this.configService.get<string>('ASAAS_API_KEY');
 
@@ -352,13 +357,7 @@ export class AsaasService {
 
       if (subscription) {
         this.logger.log(`Confirmando pagamento de plano: ${payment.id}`);
-
-        const subscriptionsService = await import(
-          '../subscriptions/subscriptions.service'
-        ).then((m) => new m.SubscriptionsService(this.prisma, this));
-
-        await subscriptionsService.confirmPlanPayment(payment.id);
-
+        await this.subscriptionsService.confirmPlanPayment(payment.id);
         this.logger.log(`Plano ativado via webhook: ${payment.id}`);
         return;
       }

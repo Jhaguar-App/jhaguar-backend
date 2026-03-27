@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
@@ -11,7 +11,7 @@ import { AsaasModule } from '../asaas/asaas.module';
 @Module({
   imports: [
     PrismaModule,
-    AsaasModule,
+    forwardRef(() => AsaasModule),
     ScheduleModule.forRoot(),
   ],
   controllers: [

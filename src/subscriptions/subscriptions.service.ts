@@ -429,4 +429,50 @@ export class SubscriptionsService {
 
     return expiring;
   }
+
+  async getDriverFromUserId(userId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { userId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Motorista não encontrado');
+    }
+
+    return driver;
+  }
+
+  async getActiveSubscriptionsWithDetails(filters?: { planType?: string; status?: string }) {
+    const where: any = {};
+
+    if (filters?.planType) {
+      where.plan = { type: filters.planType };
+    }
+
+    if (filters?.status) {
+      where.status = filters.status;
+    } else {
+      where.status = 'ACTIVE';
+    }
+
+    return this.prisma.driverSubscription.findMany({
+      where,
+      include: {
+        driver: {
+          include: {
+            User: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
+        plan: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
