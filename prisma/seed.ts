@@ -4,6 +4,7 @@ import {
   VehicleType,
   Gender,
   Status,
+  SubscriptionPlanType,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -416,9 +417,56 @@ async function main() {
     `✅ Created passenger: ${passenger2User.firstName} ${passenger2User.lastName}\n`,
   );
 
+  console.log('📋 Creating subscription plans...');
+  const plans = [
+    {
+      type: 'WEEKLY',
+      name: 'Plano Semanal',
+      description: 'Acesso por 7 dias - Ideal para testar a plataforma',
+      price: 49.90,
+      durationDays: 7,
+      isActive: true,
+    },
+    {
+      type: 'BIWEEKLY',
+      name: 'Plano Quinzenal',
+      description: 'Acesso por 15 dias - Economia de 10%',
+      price: 89.90,
+      durationDays: 15,
+      isActive: true,
+    },
+    {
+      type: 'MONTHLY',
+      name: 'Plano Mensal',
+      description: 'Acesso por 30 dias - Mais popular',
+      price: 149.90,
+      durationDays: 30,
+      isActive: true,
+    },
+    {
+      type: 'QUARTERLY',
+      name: 'Plano Trimestral',
+      description: 'Acesso por 90 dias - Melhor custo-benefício',
+      price: 399.90,
+      durationDays: 90,
+      isActive: true,
+    },
+  ];
+
+  for (const planData of plans) {
+    await prisma.subscriptionPlan.upsert({
+      where: { type: planData.type as any },
+      create: planData as any,
+      update: {},
+    });
+  }
+
+  console.log(`✅ Created ${plans.length} subscription plans\n`);
+
   console.log('🎉 Seed completed successfully!\n');
   console.log('📝 Summary:');
   console.log(`   - ${rideTypes.length} ride types`);
+  console.log('   - 4 subscription plans');
   console.log('   - 2 approved drivers with vehicles');
   console.log('   - 2 passengers with wallets');
   console.log('\n🔑 Login credentials:');
