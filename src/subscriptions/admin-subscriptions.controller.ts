@@ -8,9 +8,7 @@ export class AdminSubscriptionsController {
 
   @Get('plans')
   async getAllPlans() {
-    return this.subscriptionsService['prisma'].subscriptionPlan.findMany({
-      orderBy: { price: 'asc' },
-    });
+    return this.subscriptionsService.getAllPlans();
   }
 
   @Post('plans')
