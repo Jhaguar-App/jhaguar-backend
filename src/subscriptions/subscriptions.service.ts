@@ -24,6 +24,14 @@ export class SubscriptionsService {
     return plans;
   }
 
+  async getAllPlans() {
+    const plans = await this.prisma.subscriptionPlan.findMany({
+      orderBy: { price: 'asc' },
+    });
+
+    return plans;
+  }
+
   async getPlanById(planId: string) {
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id: planId },
