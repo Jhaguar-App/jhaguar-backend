@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { WebhookGuard } from './guards/webhook.guard';
 import { CreateChargeDto, CreditCardPaymentDto } from './dto';
 import { AsaasService } from './asaas.service';
 import { AsaasWebhookEvent } from './interfaces/asaas.interfaces';
@@ -162,6 +163,7 @@ export class AsaasController {
 
   @Post('webhook')
   @Public()
+  @UseGuards(WebhookGuard)
   @ApiOperation({
     summary: 'Webhook do ASAAS',
     description: 'Endpoint para receber eventos do ASAAS',
