@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AsaasService } from '../asaas/asaas.service';
 import { AsaasBillingType } from '../asaas/interfaces/asaas.interfaces';
@@ -12,6 +12,7 @@ export class SubscriptionsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => AsaasService))
     private readonly asaasService: AsaasService,
   ) {}
 
