@@ -448,15 +448,15 @@ model SubscriptionPlan {
 
 model DriverSubscription {
   id              String             @id @default(uuid())
-  driverId        String
-  planId          String
+  driverId        String             @map("driverid")
+  planId          String             @map("planid")
   status          SubscriptionStatus @default(PENDING_PAYMENT)
-  startDate       DateTime?
-  endDate         DateTime?
-  paymentIntentId String?
+  startDate       DateTime?          @map("startdate")
+  endDate         DateTime?          @map("enddate")
+  paymentIntentId String?            @map("paymentintentid")
   amount          Float
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt       DateTime           @default(now()) @map("createdat")
+  updatedAt       DateTime           @updatedAt @map("updatedat")
   driver          Driver             @relation("DriverSubscriptions", fields: [driverId], references: [id])
   plan            SubscriptionPlan   @relation(fields: [planId], references: [id])
   currentDriver   Driver?            @relation("CurrentSubscription")
