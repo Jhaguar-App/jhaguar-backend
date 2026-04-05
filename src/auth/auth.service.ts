@@ -651,6 +651,9 @@ export class AuthService {
         currentLatitude: true,
         currentLongitude: true,
         acceptsFemaleOnly: true,
+        subscriptionStatus: true,
+        subscriptionExpiresAt: true,
+        currentSubscriptionId: true,
         Vehicle: true,
       },
     });
@@ -687,6 +690,9 @@ export class AuthService {
             currentLatitude: driver.currentLatitude,
             currentLongitude: driver.currentLongitude,
             acceptsFemaleOnly: driver.acceptsFemaleOnly,
+            subscriptionStatus: driver.subscriptionStatus,
+            subscriptionExpiresAt: driver.subscriptionExpiresAt,
+            currentSubscriptionId: driver.currentSubscriptionId,
           }
         : null,
       passengerDetails: passenger
