@@ -69,6 +69,36 @@ export class PaymentsController {
     };
   }
 
+  @Get('wallet/balance')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Saldo da carteira do usuário',
+    description: 'Retorna o saldo atual da carteira',
+  })
+  async getWalletBalance(@Request() req) {
+    try {
+      const balance = await this.paymentsService.getWalletBalance(req.user.id);
+
+      return {
+        success: true,
+        data: {
+          balance,
+          userId: req.user.id,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Erro ao buscar saldo da carteira:', error);
+      return {
+        success: true,
+        data: {
+          balance: 0,
+          userId: req.user.id,
+        },
+      };
+    }
+  }
+
   @Get('driver/statistics')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
