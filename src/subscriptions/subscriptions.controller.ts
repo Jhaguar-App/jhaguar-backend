@@ -36,6 +36,30 @@ export class SubscriptionsController {
     return this.subscriptionsService.checkSubscriptionStatus(driver.id);
   }
 
+  @Get('validate')
+  async validateSubscription(@Request() req) {
+    try {
+      const driver = await this.getDriverFromUser(req.user.id);
+      const result = await this.subscriptionsService.checkSubscriptionStatus(driver.id);
+
+      return {
+        canGoOnline: result.hasActiveSubscription,
+        subscription: result.subscription,
+        requiresAction: !result.hasActiveSubscription ? 'PURCHASE_PLAN' : null,
+        message: result.hasActiveSubscription
+          ? 'Assinatura ativa'
+          : 'Você precisa de um plano ativo para ficar online',
+      };
+    } catch (error) {
+      return {
+        canGoOnline: false,
+        subscription: null,
+        requiresAction: 'PURCHASE_PLAN',
+        message: 'Você precisa de um plano ativo para ficar online',
+      };
+    }
+  }
+
   @Get('history')
   async getSubscriptionHistory(@Request() req) {
     const driver = await this.getDriverFromUser(req.user.id);

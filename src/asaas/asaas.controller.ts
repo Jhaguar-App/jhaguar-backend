@@ -100,12 +100,24 @@ export class AsaasController {
     },
   ) {
     try {
+      if (!body.chargeId) {
+        throw new BadRequestException('ID da cobrança é obrigatório');
+      }
+
+      if (!body.creditCard) {
+        throw new BadRequestException('Dados do cartão são obrigatórios');
+      }
+
       this.logger.log(`Processando pagamento com cartão para cobrança: ${body.chargeId}`);
 
       const result = await this.asaasService.payWithCreditCard(
         body.chargeId,
         body.creditCard,
       );
+
+      if (!result || !result.id) {
+        throw new BadRequestException('Falha ao processar pagamento. Resposta inválida do gateway.');
+      }
 
       return {
         success: true,
@@ -120,19 +132,9 @@ export class AsaasController {
     } catch (error) {
       this.logger.error('Erro ao processar pagamento com cartão:', error);
 
-      if (error instanceof Error) {
-        return {
-          success: false,
-          message: error.message,
-          data: null,
-        };
-      }
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao processar pagamento';
 
-      return {
-        success: false,
-        message: 'Erro desconhecido ao processar pagamento',
-        data: null,
-      };
+      throw new BadRequestException(errorMessage);
     }
   }
 
