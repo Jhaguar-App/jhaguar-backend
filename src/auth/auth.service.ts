@@ -669,6 +669,15 @@ export class AuthService {
       },
     });
 
+    // Log temporário para debug de assinatura
+    if (driver) {
+      this.logger.log(`🔍 DEBUG getUserInfo - Driver ${driver.id}:`, {
+        subscriptionStatus: driver.subscriptionStatus,
+        subscriptionExpiresAt: driver.subscriptionExpiresAt,
+        currentSubscriptionId: driver.currentSubscriptionId,
+      });
+    }
+
     const result = {
       ...user,
       isAdmin: user.isAdmin,
