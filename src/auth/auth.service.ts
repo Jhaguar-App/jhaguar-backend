@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -33,6 +34,7 @@ interface RequestMetadata {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private userInfoCache = new Map<string, { data: any; expiry: number }>();
 
   constructor(
