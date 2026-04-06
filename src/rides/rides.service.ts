@@ -81,14 +81,8 @@ export class RidesService {
       );
 
       if (confirmation.success) {
-        // NOVO: Incluir métodos de pagamento disponíveis
-        const paymentMethods = await this.paymentsService.getPaymentMethods(
-          userId,
-        );
-
+        const paymentMethods = await this.paymentsService.getPaymentMethods();
         confirmation.data.paymentMethods = paymentMethods;
-        confirmation.data.walletBalance =
-          await this.paymentsService.getWalletBalance(userId);
 
         this.confirmationTokens.set(confirmation.data.confirmationToken, {
           data: {
@@ -456,13 +450,7 @@ export class RidesService {
           }
         }
 
-        // NOVO: Incluir informações de pagamento na resposta
-        const paymentMethods = await this.paymentsService.getPaymentMethods(
-          userId,
-        );
-        const walletBalance = await this.paymentsService.getWalletBalance(
-          userId,
-        );
+        const paymentMethods = await this.paymentsService.getPaymentMethods();
 
         return {
           success: true,
@@ -861,12 +849,8 @@ export class RidesService {
         currentStatus: updatedPayment?.status || PaymentStatus.PENDING,
         requiresPayment:
           !updatedPayment || updatedPayment.status === PaymentStatus.PENDING,
-        availableMethods: await this.paymentsService.getPaymentMethods(
-          ride.Passenger.userId,
-        ),
-        automaticallyProcessed:
-          updatedPayment?.method === 'WALLET_BALANCE' &&
-          updatedPayment?.status === 'PAID',
+        availableMethods: await this.paymentsService.getPaymentMethods(),
+        automaticallyProcessed: false,
       };
 
       return {
