@@ -291,27 +291,30 @@ export class PaymentsService {
     return wallet.balance;
   }
 
-  async getPaymentMethods(userId: string) {
-    const wallet = await this.getOrCreateWallet(userId);
-
-    return {
-      wallet: {
+  async getPaymentMethods() {
+    return [
+      {
+        code: 'CASH',
+        name: 'Dinheiro',
+        description: 'Pagamento em dinheiro diretamente ao motorista',
         available: true,
-        balance: wallet.balance,
+        isDigital: false,
       },
-      creditCard: {
+      {
+        code: 'PIX',
+        name: 'PIX',
+        description: 'Transferência PIX diretamente ao motorista',
         available: true,
+        isDigital: false,
       },
-      debitCard: {
+      {
+        code: 'CARD_MACHINE',
+        name: 'Cartão na Maquininha',
+        description: 'Pagamento com cartão na maquininha do motorista',
         available: true,
+        isDigital: false,
       },
-      pix: {
-        available: true,
-      },
-      cash: {
-        available: true,
-      },
-    };
+    ];
   }
 
   async processRidePaymentByMethod(data: {

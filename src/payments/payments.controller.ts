@@ -69,34 +69,37 @@ export class PaymentsController {
     };
   }
 
+  @Get('methods')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Métodos de pagamento disponíveis',
+    description: 'Retorna métodos de pagamento offline (presencial)',
+  })
+  async getPaymentMethods() {
+    const methods = await this.paymentsService.getPaymentMethods();
+
+    return {
+      success: true,
+      data: methods,
+    };
+  }
+
   @Get('wallet/balance')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Saldo da carteira do usuário',
-    description: 'Retorna o saldo atual da carteira',
+    summary: 'Saldo da carteira (deprecated)',
+    description: 'Retorna sempre 0 - sistema agora usa apenas pagamentos offline',
   })
   async getWalletBalance(@Request() req) {
-    try {
-      const balance = await this.paymentsService.getWalletBalance(req.user.id);
-
-      return {
-        success: true,
-        data: {
-          balance,
-          userId: req.user.id,
-        },
-      };
-    } catch (error) {
-      this.logger.error('Erro ao buscar saldo da carteira:', error);
-      return {
-        success: true,
-        data: {
-          balance: 0,
-          userId: req.user.id,
-        },
-      };
-    }
+    return {
+      success: true,
+      data: {
+        balance: 0,
+        userId: req.user.id,
+      },
+    };
   }
 
   @Get('driver/statistics')
