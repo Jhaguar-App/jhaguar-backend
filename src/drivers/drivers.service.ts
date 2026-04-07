@@ -965,37 +965,30 @@ export class DriversService {
       where: {
         driverId,
         status: {
-          in: ['IN_PROGRESS', 'ACCEPTED', 'PENDING'],
+          in: ['IN_PROGRESS', 'ACCEPTED', 'REQUESTED'],
         },
       },
       take: 1,
     });
 
-    const updates = [
-      this.prisma.driver.update({
-        where: { id: driverId },
-        data: {
-          isAvailable: true,
-          isActiveTrip: false,
-          isOnline: false,
-        },
-      }),
-    ];
+    await this.prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        isAvailable: true,
+        isActiveTrip: false,
+        isOnline: false,
+      },
+    });
 
     if (activeRides.length > 0) {
-      updates.push(
-        this.prisma.ride.update({
-          where: { id: activeRides[0].id },
-          data: {
-            status: 'CANCELLED',
-            cancellationReason: 'Reset de estado de emergência',
-            cancelledAt: new Date(),
-          },
-        }),
-      );
+      await this.prisma.ride.update({
+        where: { id: activeRides[0].id },
+        data: {
+          status: 'CANCELLED',
+          cancellationReason: 'Reset de estado de emergência',
+        },
+      });
     }
-
-    await this.prisma.$transaction(updates);
 
     this.logger.log(`Estado do motorista ${driverId} resetado com sucesso`);
 
