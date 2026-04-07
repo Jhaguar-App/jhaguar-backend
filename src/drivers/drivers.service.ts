@@ -955,25 +955,23 @@ export class DriversService {
   async resetDriverState(driverId: string) {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
-      include: {
-        Ride: {
-          where: {
-            OR: [
-              { status: 'IN_PROGRESS' },
-              { status: 'DRIVER_ARRIVED' },
-              { status: 'DRIVER_ASSIGNED' },
-            ],
-          },
-          take: 1,
-        },
-      },
     });
 
     if (!driver) {
       throw new NotFoundException('Motorista não encontrado');
     }
 
-    await this.prisma.$transaction([
+    const activeRides = await this.prisma.ride.findMany({
+      where: {
+        driverId,
+        status: {
+          in: ['IN_PROGRESS', 'ACCEPTED', 'PENDING'],
+        },
+      },
+      take: 1,
+    });
+
+    const updates = [
       this.prisma.driver.update({
         where: { id: driverId },
         data: {
@@ -982,20 +980,22 @@ export class DriversService {
           isOnline: false,
         },
       }),
-      ...(driver.Ride.length > 0
-        ? [
-            this.prisma.ride.update({
-              where: { id: driver.Ride[0].id },
-              data: {
-                status: 'CANCELLED',
-                cancellationReason: 'Reset de estado de emergência',
-                cancelledBy: 'DRIVER',
-                cancelledAt: new Date(),
-              },
-            }),
-          ]
-        : []),
-    ]);
+    ];
+
+    if (activeRides.length > 0) {
+      updates.push(
+        this.prisma.ride.update({
+          where: { id: activeRides[0].id },
+          data: {
+            status: 'CANCELLED',
+            cancellationReason: 'Reset de estado de emergência',
+            cancelledAt: new Date(),
+          },
+        }),
+      );
+    }
+
+    await this.prisma.$transaction(updates);
 
     this.logger.log(`Estado do motorista ${driverId} resetado com sucesso`);
 

@@ -326,6 +326,33 @@ export class PaymentsService {
     const { rideId, userId, amount, method } = data;
 
     try {
+      const existingPayment = await this.prisma.payment.findUnique({
+        where: { rideId },
+      });
+
+      if (existingPayment) {
+        this.logger.log(`Pagamento já existe para corrida ${rideId}, atualizando status`);
+
+        const payment = await this.prisma.payment.update({
+          where: { rideId },
+          data: {
+            status: 'PAID',
+            amount,
+            method,
+          },
+        });
+
+        await this.prisma.ride.update({
+          where: { id: rideId },
+          data: { paymentStatus: 'PAID' },
+        });
+
+        return {
+          success: true,
+          payment,
+        };
+      }
+
       const payment = await this.prisma.payment.create({
         data: {
           rideId,
