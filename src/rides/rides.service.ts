@@ -1930,7 +1930,7 @@ export class RidesService {
         },
       });
 
-      const driverEarnings = (ride.finalPrice || 0) * 0.9;
+      const driverEarnings = ride.finalPrice || 0;
 
       // 🔥 Non-blocking async updates (fire and forget for non-critical operations)
       const statsUpdatePromises = [
