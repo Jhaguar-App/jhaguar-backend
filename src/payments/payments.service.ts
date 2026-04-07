@@ -331,7 +331,7 @@ export class PaymentsService {
           rideId,
           amount,
           method,
-          status: 'COMPLETED',
+          status: 'PAID',
         },
       });
 
