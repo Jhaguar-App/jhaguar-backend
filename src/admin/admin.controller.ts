@@ -48,7 +48,7 @@ export class AdminController {
 
   @Patch('drivers/:id/vehicle-status')
   async updateVehicleStatus(
-    @Param('id') id: string, // This is driverId based on service logic, but let's verify. Service uses driverId to find vehicle.
+    @Param('id') id: string,
     @Body('status') status: Status,
   ) {
     return this.adminService.updateVehicleStatus(id, status);
@@ -63,10 +63,7 @@ export class AdminController {
   }
 
   @Patch('drivers/:id/vehicle')
-  async updateDriverVehicle(
-    @Param('id') id: string,
-    @Body() vehicleData: any,
-  ) {
+  async updateDriverVehicle(@Param('id') id: string, @Body() vehicleData: any) {
     return this.adminService.updateDriverVehicle(id, vehicleData);
   }
 
