@@ -405,4 +405,12 @@ export class DriversController {
   async debugOnlineStatus() {
     return this.driversService.debugOnlineStatus();
   }
+
+  @Post(':id/reset-state')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Resetar estado do motorista (emergência)' })
+  async resetDriverState(@Param('id') driverId: string) {
+    return this.driversService.resetDriverState(driverId);
+  }
 }

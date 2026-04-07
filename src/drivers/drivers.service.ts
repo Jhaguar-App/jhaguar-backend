@@ -951,4 +951,63 @@ export class DriversService {
       });
     }
   }
+
+  async resetDriverState(driverId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      include: {
+        Ride: {
+          where: {
+            OR: [
+              { status: 'IN_PROGRESS' },
+              { status: 'DRIVER_ARRIVED' },
+              { status: 'DRIVER_ASSIGNED' },
+            ],
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Motorista não encontrado');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.driver.update({
+        where: { id: driverId },
+        data: {
+          isAvailable: true,
+          isActiveTrip: false,
+          isOnline: false,
+        },
+      }),
+      ...(driver.Ride.length > 0
+        ? [
+            this.prisma.ride.update({
+              where: { id: driver.Ride[0].id },
+              data: {
+                status: 'CANCELLED',
+                cancellationReason: 'Reset de estado de emergência',
+                cancelledBy: 'DRIVER',
+                cancelledAt: new Date(),
+              },
+            }),
+          ]
+        : []),
+    ]);
+
+    this.logger.log(`Estado do motorista ${driverId} resetado com sucesso`);
+
+    return {
+      success: true,
+      message: 'Estado do motorista resetado com sucesso',
+      driver: {
+        id: driver.id,
+        isAvailable: true,
+        isActiveTrip: false,
+        isOnline: false,
+      },
+    };
+  }
 }
