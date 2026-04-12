@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jhaguar - API</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 60px 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        h1 {
+            font-size: 48px;
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        .logo {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 18px;
+            color: #718096;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        .links {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        .link {
+            display: inline-block;
+            padding: 15px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 16px;
+        }
+        .link:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .link.secondary {
+            background: #f7fafc;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        .link.secondary:hover {
+            background: #edf2f7;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #e2e8f0;
+            color: #a0aec0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🐆</div>
+        <h1>Jhaguar API</h1>
+        <p>API de Transporte de Passageiros</p>
+
+        <div class="links">
+            <a href="/api-docs" class="link">📚 Documentação da API</a>
+            <a href="/privacy.html" class="link secondary">🔒 Política de Privacidade</a>
+            <a href="/terms.html" class="link secondary">📜 Termos de Uso</a>
+            <a href="/delete-account.html" class="link secondary">🗑️ Excluir Conta</a>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2026 Jhaguar. Todos os direitos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>

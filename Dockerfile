@@ -56,6 +56,9 @@ RUN npx prisma generate
 # Copiar código compilado da etapa builder
 COPY --from=builder /usr/src/app/dist ./dist
 
+# Copiar arquivos estáticos (HTML, CSS, etc.)
+COPY --from=builder /usr/src/app/public ./public
+
 # Expor porta
 EXPOSE 3000
 
