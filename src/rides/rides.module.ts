@@ -17,6 +17,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ChatModule } from '../chat/chat.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { RatingsModule } from '../ratings/ratings.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     forwardRef(() => NotificationsModule),
     forwardRef(() => ChatModule),
     RedisModule,
+    RatingsModule,
   ],
   controllers: [RidesController, RidesDebugController, RidesSyncController],
   providers: [

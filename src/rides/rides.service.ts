@@ -17,6 +17,7 @@ import { RideGateway } from './rides.gateway';
 import { ChatService } from '../chat/chat.service';
 import { ChatGateway } from '../chat/chat.gateway';
 import { RidesStateService } from './rides-state.service';
+import { RatingsService } from '../ratings/ratings.service';
 import { CreateRideDto } from './dto/create-ride.dto';
 import { AcceptRideDto } from './dto/accept-ride.dto';
 import { RejectRideDto } from './dto/reject-ride.dto';
@@ -48,6 +49,7 @@ export class RidesService {
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
     private readonly ridesStateService: RidesStateService,
+    private readonly ratingsService: RatingsService,
   ) {
     setInterval(() => this.cleanExpiredTokens(), 5 * 60 * 1000);
   }
@@ -627,6 +629,24 @@ export class RidesService {
     const ratedUserId = isPassengerRating ? driver?.userId : passenger?.userId;
     if (!ratedUserId) throw new BadRequestException('Parte avaliada inválida');
 
+    const existingRating = await this.prisma.rating.findUnique({
+      where: {
+        rideId_ratedByUserId_ratedUserId: {
+          rideId,
+          ratedByUserId: userId,
+          ratedUserId,
+        },
+      },
+    });
+
+    if (existingRating) {
+      throw new BadRequestException('Voce ja avaliou esta corrida.');
+    }
+
+    if (ride.status !== RideStatus.COMPLETED) {
+      throw new BadRequestException('Somente corridas finalizadas podem ser avaliadas.');
+    }
+
     const rating = await this.prisma.rating.create({
       data: {
         rideId,
@@ -635,6 +655,10 @@ export class RidesService {
         rating: body.rating,
         review: body.review,
       },
+    });
+
+    this.ratingsService.updateAverageRating(ratedUserId).catch((err) => {
+      this.logger.error(`Erro ao atualizar media: ${err.message}`);
     });
 
     return { success: true, data: { ratingId: rating.id } };

@@ -26,6 +26,7 @@ import { join } from 'path';
 import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
     AsaasModule,
     ChatModule,
     AdminModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [

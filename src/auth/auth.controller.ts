@@ -10,6 +10,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
+import { VerifyEmailDto, ResendVerificationDto } from './dto/verify-email.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User } from './decorator/user.decorator';
 
@@ -107,6 +108,23 @@ export class AuthController {
   async getUserInfo(@User() user: any) {
     return this.authService.getUserInfo(user.id);
   }
+  @Post('verify-email')
+  @Throttle(5, 300)
+  @ApiOperation({ summary: 'Verificar e-mail com codigo de 6 digitos' })
+  @ApiResponse({ status: 200, description: 'E-mail verificado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Codigo invalido ou expirado' })
+  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+    return this.authService.verifyEmail(verifyEmailDto.email, verifyEmailDto.code);
+  }
+
+  @Post('resend-verification')
+  @Throttle(3, 300)
+  @ApiOperation({ summary: 'Reenviar codigo de verificacao de e-mail' })
+  @ApiResponse({ status: 200, description: 'Codigo reenviado' })
+  async resendVerification(@Body() resendDto: ResendVerificationDto) {
+    return this.authService.resendVerification(resendDto.email);
+  }
+
   @Post('forgot-password')
   @Throttle(3, 300)
   @ApiOperation({ summary: 'Solicitar redefinição de senha' })

@@ -19,7 +19,9 @@ import { ChangeEmailDto } from './dto/change-email.dto';
 import * as bcrypt from 'bcrypt';
 import { AuthAction, Status } from '@prisma/client';
 import { PaymentsService } from '../payments/payments.service';
+import { MailService } from '../mail/mail.service';
 import { generateSecureToken, generateJti } from './utils/token.utils';
+import { randomInt } from 'crypto';
 
 const BCRYPT_ROUNDS = 12;
 const ACCESS_TOKEN_EXPIRY = '15m';
@@ -42,7 +44,12 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly paymentsService: PaymentsService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
+
+  private generateVerificationCode(): string {
+    return randomInt(100000, 999999).toString();
+  }
 
   async register(registerDto: RegisterDto, metadata?: RequestMetadata) {
     const existingUser = await this.prisma.user.findUnique({
@@ -150,7 +157,7 @@ export class AuthService {
     try {
       await this.paymentsService.getOrCreateWallet(result.user.id);
     } catch (error) {
-      console.error(`Erro ao criar carteira para usuário ${result.user.id}`);
+      console.error(`Erro ao criar carteira para usuario ${result.user.id}`);
     }
 
     await this.logAuthEvent({
@@ -160,6 +167,8 @@ export class AuthService {
       success: true,
       ...metadata,
     });
+
+    await this.sendVerificationEmail(result.user.id, result.user.email, registerDto.firstName);
 
     return this.createTokensForUser(result.user.id, result.user.email, metadata);
   }
@@ -502,11 +511,12 @@ export class AuthService {
         phone: true,
         profileImage: true,
         isAdmin: true,
+        isVerified: true,
       },
     });
 
     if (!userDetails) {
-      throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
+      throw new NotFoundException(`Usuario com ID ${userId} nao encontrado`);
     }
 
     const driver = await this.prisma.driver.findUnique({
@@ -575,6 +585,7 @@ export class AuthService {
       lastName: userDetails.lastName,
       phone: userDetails.phone,
       profileImage: userDetails.profileImage,
+      isVerified: userDetails.isVerified,
       isAdmin: userDetails.isAdmin || this.isAdmin(userDetails.email),
       isDriver: !!driver,
       isPassenger: !!passenger,
@@ -631,6 +642,7 @@ export class AuthService {
         createdAt: true,
         updatedAt: true,
         isAdmin: true,
+        isVerified: true,
       },
     });
 
@@ -682,6 +694,7 @@ export class AuthService {
 
     const result = {
       ...user,
+      isVerified: user.isVerified,
       isAdmin: user.isAdmin,
       isDriver: !!driver,
       isPassenger: !!passenger,
@@ -774,84 +787,200 @@ export class AuthService {
     return deleted.count;
   }
 
+  private async sendVerificationEmail(userId: string, email: string, firstName: string) {
+    try {
+      await this.prisma.emailVerificationToken.updateMany({
+        where: { userId, used: false },
+        data: { used: true },
+      });
+
+      const code = this.generateVerificationCode();
+      await this.prisma.emailVerificationToken.create({
+        data: {
+          userId,
+          code,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        },
+      });
+
+      await this.mailService.sendVerificationCode(email, firstName, code);
+    } catch (error) {
+      this.logger.error(`Erro ao enviar email de verificacao: ${error.message}`);
+    }
+  }
+
+  async verifyEmail(email: string, code: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Codigo invalido ou expirado.');
+    }
+
+    if (user.isVerified) {
+      return { success: true, message: 'E-mail ja verificado.' };
+    }
+
+    const token = await this.prisma.emailVerificationToken.findFirst({
+      where: {
+        userId: user.id,
+        code,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!token) {
+      throw new BadRequestException('Codigo invalido ou expirado.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.emailVerificationToken.update({
+        where: { id: token.id },
+        data: { used: true },
+      }),
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { isVerified: true },
+      }),
+    ]);
+
+    await this.logAuthEvent({
+      userId: user.id,
+      email: user.email,
+      action: AuthAction.EMAIL_VERIFIED,
+      success: true,
+    });
+
+    this.mailService.sendWelcome(email, user.firstName).catch(() => {});
+
+    this.clearUserCache(user.id);
+
+    return { success: true, message: 'E-mail verificado com sucesso.' };
+  }
+
+  async resendVerification(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return {
+        success: true,
+        message: 'Se o e-mail existir, um novo codigo sera enviado.',
+      };
+    }
+
+    if (user.isVerified) {
+      return { success: true, message: 'E-mail ja verificado.' };
+    }
+
+    const recentToken = await this.prisma.emailVerificationToken.findFirst({
+      where: {
+        userId: user.id,
+        used: false,
+        createdAt: { gt: new Date(Date.now() - 60 * 1000) },
+      },
+    });
+
+    if (recentToken) {
+      throw new BadRequestException('Aguarde 1 minuto antes de solicitar novo codigo.');
+    }
+
+    await this.sendVerificationEmail(user.id, user.email, user.firstName);
+
+    return {
+      success: true,
+      message: 'Se o e-mail existir, um novo codigo sera enviado.',
+    };
+  }
+
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: forgotPasswordDto.email },
     });
 
     if (!user) {
-      // Retornar sucesso mesmo se não encontrar para evitar enumeração de usuários
       return {
         success: true,
-        message: 'Se o email existir, você receberá um link para redefinir sua senha.',
+        message: 'Se o email existir, voce recebera um codigo para redefinir sua senha.',
       };
     }
 
-    const token = this.jwtService.sign(
-      { sub: user.id, email: user.email, type: 'reset' },
-      { expiresIn: '1h' },
-    );
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, used: false },
+      data: { used: true },
+    });
+
+    const code = this.generateVerificationCode();
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        code,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
+    });
+
+    await this.mailService.sendPasswordResetCode(user.email, user.firstName, code);
 
     await this.logAuthEvent({
       userId: user.id,
       email: user.email,
       action: AuthAction.PASSWORD_RESET,
       success: true,
-      failureReason: 'Solicitação de redefinição de senha',
+      failureReason: 'Solicitacao de redefinicao de senha',
     });
-
-    // TODO: Integrar com serviço de email real
-    console.log(`[RESET PASSWORD] Token para ${user.email}: ${token}`);
 
     return {
       success: true,
-      message: 'Se o email existir, você receberá um link para redefinir sua senha.',
-      resetToken: this.configService.get('NODE_ENV') === 'development' ? token : undefined,
+      message: 'Se o email existir, voce recebera um codigo para redefinir sua senha.',
     };
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
-    try {
-      const payload = this.jwtService.verify(resetPasswordDto.token);
+    const resetToken = await this.prisma.passwordResetToken.findFirst({
+      where: {
+        code: resetPasswordDto.token,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+      include: { User: true },
+    });
 
-      if (payload.type !== 'reset') {
-        throw new UnauthorizedException('Token inválido para redefinição de senha.');
-      }
+    if (!resetToken) {
+      throw new UnauthorizedException('Codigo invalido ou expirado.');
+    }
 
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-      });
+    const hashedPassword = await bcrypt.hash(resetPasswordDto.password, BCRYPT_ROUNDS);
 
-      if (!user) {
-        throw new NotFoundException('Usuário não encontrado.');
-      }
-
-      const hashedPassword = await bcrypt.hash(resetPasswordDto.password, BCRYPT_ROUNDS);
-
-      await this.prisma.user.update({
-        where: { id: user.id },
+    await this.prisma.$transaction([
+      this.prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { used: true },
+      }),
+      this.prisma.user.update({
+        where: { id: resetToken.userId },
         data: {
           password: hashedPassword,
           failedLoginAttempts: 0,
           accountLockedUntil: null,
         },
-      });
+      }),
+    ]);
 
-      await this.logAuthEvent({
-        userId: user.id,
-        email: user.email,
-        action: AuthAction.PASSWORD_CHANGE,
-        success: true,
-        failureReason: 'Senha redefinida com sucesso',
-      });
+    await this.logAuthEvent({
+      userId: resetToken.userId,
+      email: resetToken.User.email,
+      action: AuthAction.PASSWORD_CHANGE,
+      success: true,
+      failureReason: 'Senha redefinida com sucesso',
+    });
 
-      return {
-        success: true,
-        message: 'Senha redefinida com sucesso.',
-      };
-    } catch (error) {
-      throw new UnauthorizedException('Token inválido ou expirado.');
-    }
+    return {
+      success: true,
+      message: 'Senha redefinida com sucesso.',
+    };
   }
 
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {

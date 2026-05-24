@@ -380,14 +380,16 @@ model User {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   deletedAt           DateTime?
-  ChatMessage         ChatMessage[]
-  Driver              Driver?
-  Passenger           Passenger?
-  Rating              Rating[]
-  Transaction         Transaction[]
-  UserWallet          UserWallet?
-  RefreshToken        RefreshToken[]
-  AuthLog             AuthLog[]
+  ChatMessage              ChatMessage[]
+  Driver                   Driver?
+  Passenger                Passenger?
+  Rating                   Rating[]
+  Transaction              Transaction[]
+  UserWallet               UserWallet?
+  RefreshToken             RefreshToken[]
+  AuthLog                  AuthLog[]
+  EmailVerificationToken   EmailVerificationToken[]
+  PasswordResetToken       PasswordResetToken[]
 }
 
 model UserWallet {
@@ -630,6 +632,34 @@ model AuthLog {
   @@index([success])
 }
 
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+  @@index([expiresAt])
+}
+
 enum AuthAction {
   LOGIN
   REGISTER
@@ -638,4 +668,5 @@ enum AuthAction {
   PASSWORD_CHANGE
   PASSWORD_RESET
   ACCOUNT_LOCKED
+  EMAIL_VERIFIED
 }
