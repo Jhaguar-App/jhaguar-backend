@@ -3,7 +3,10 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/adapters/handlebars.adapter';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { join } from 'path';
+import * as dns from 'dns';
 import { MailService } from './mail.service';
+
+dns.setDefaultResultOrder('ipv4first');
 
 @Module({
   imports: [
@@ -18,6 +21,9 @@ import { MailService } from './mail.service';
           auth: {
             user: config.get('SMTP_USER'),
             pass: config.get('SMTP_PASS'),
+          },
+          tls: {
+            rejectUnauthorized: false,
           },
         },
         defaults: {
