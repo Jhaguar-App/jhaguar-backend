@@ -1,76 +1,28 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
 import * as handlebars from 'handlebars';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as dns from 'dns';
-import * as net from 'net';
-import * as tls from 'tls';
 
 @Injectable()
 export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter;
   private templates = new Map<string, handlebars.TemplateDelegate>();
+  private apiKey: string;
   private from: string;
-  private smtpHost: string;
-  private smtpPort: number;
-  private smtpUser: string;
-  private smtpPass: string;
-  private resolvedIp: string | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    this.smtpHost = this.configService.get('SMTP_HOST', 'smtp.gmail.com');
-    this.smtpPort = this.configService.get<number>('SMTP_PORT', 465);
-    this.smtpUser = this.configService.get('SMTP_USER', '');
-    this.smtpPass = this.configService.get('SMTP_PASS', '');
-    this.from = this.configService.get('MAIL_FROM', '"Jhaguar" <noreply@jhaguar.app>');
+    this.apiKey = this.configService.get('RESEND_API_KEY', '');
+    this.from = this.configService.get('MAIL_FROM', 'Jhaguar <onboarding@resend.dev>');
   }
 
-  async onModuleInit() {
-    await this.resolveSmtpHost();
-    this.createTransporter();
+  onModuleInit() {
     this.loadTemplates();
-    this.logger.log(`Mail service initialized (host: ${this.smtpHost} -> ${this.resolvedIp}, port: ${this.smtpPort})`);
-  }
-
-  private async resolveSmtpHost() {
-    try {
-      const addresses = await new Promise<string[]>((resolve, reject) => {
-        dns.resolve4(this.smtpHost, (err, addrs) => {
-          if (err) reject(err);
-          else resolve(addrs);
-        });
-      });
-      this.resolvedIp = addresses[0];
-      this.logger.log(`Resolved ${this.smtpHost} to IPv4: ${this.resolvedIp}`);
-    } catch (error) {
-      this.logger.warn(`Could not resolve ${this.smtpHost} to IPv4, using hostname directly`);
-      this.resolvedIp = null;
+    if (!this.apiKey) {
+      this.logger.warn('RESEND_API_KEY not configured - emails will not be sent');
+    } else {
+      this.logger.log(`Mail service initialized with Resend API (from: ${this.from})`);
     }
-  }
-
-  private createTransporter() {
-    const host = this.resolvedIp || this.smtpHost;
-    const isSecure = this.smtpPort === 465;
-
-    this.transporter = nodemailer.createTransport({
-      host,
-      port: this.smtpPort,
-      secure: isSecure,
-      auth: {
-        user: this.smtpUser,
-        pass: this.smtpPass,
-      },
-      tls: {
-        servername: this.smtpHost,
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    } as nodemailer.TransportOptions);
   }
 
   private loadTemplates() {
@@ -82,7 +34,6 @@ export class MailService implements OnModuleInit {
         const filePath = path.join(templatesDir, `${name}.hbs`);
         const source = fs.readFileSync(filePath, 'utf8');
         this.templates.set(name, handlebars.compile(source));
-        this.logger.log(`Template loaded: ${name}`);
       } catch (error) {
         this.logger.error(`Failed to load template ${name}: ${error.message}`);
       }
@@ -97,71 +48,64 @@ export class MailService implements OnModuleInit {
     return template(context);
   }
 
-  async sendVerificationCode(email: string, firstName: string, code: string): Promise<boolean> {
-    try {
-      const html = this.renderTemplate('verify-email', {
-        firstName,
-        code,
-        year: new Date().getFullYear(),
-      });
-
-      await this.transporter.sendMail({
-        from: this.from,
-        to: email,
-        subject: 'Jhaguar - Confirme seu e-mail',
-        html,
-      });
-
-      this.logger.log(`Verification email sent to ${email}`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to send verification email to ${email}: ${error.message}`);
+  private async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.error('Cannot send email: RESEND_API_KEY not configured');
       return false;
     }
+
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: this.from,
+          to: [to],
+          subject,
+          html,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Resend API error ${response.status}: ${errorData}`);
+      }
+
+      const data = await response.json();
+      this.logger.log(`Email sent to ${to} (id: ${data.id})`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send email to ${to}: ${error.message}`);
+      return false;
+    }
+  }
+
+  async sendVerificationCode(email: string, firstName: string, code: string): Promise<boolean> {
+    const html = this.renderTemplate('verify-email', {
+      firstName,
+      code,
+      year: new Date().getFullYear(),
+    });
+    return this.sendEmail(email, 'Jhaguar - Confirme seu e-mail', html);
   }
 
   async sendPasswordResetCode(email: string, firstName: string, code: string): Promise<boolean> {
-    try {
-      const html = this.renderTemplate('reset-password', {
-        firstName,
-        code,
-        year: new Date().getFullYear(),
-      });
-
-      await this.transporter.sendMail({
-        from: this.from,
-        to: email,
-        subject: 'Jhaguar - Redefinir sua senha',
-        html,
-      });
-
-      this.logger.log(`Password reset email sent to ${email}`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to send reset email to ${email}: ${error.message}`);
-      return false;
-    }
+    const html = this.renderTemplate('reset-password', {
+      firstName,
+      code,
+      year: new Date().getFullYear(),
+    });
+    return this.sendEmail(email, 'Jhaguar - Redefinir sua senha', html);
   }
 
   async sendWelcome(email: string, firstName: string): Promise<boolean> {
-    try {
-      const html = this.renderTemplate('welcome', {
-        firstName,
-        year: new Date().getFullYear(),
-      });
-
-      await this.transporter.sendMail({
-        from: this.from,
-        to: email,
-        subject: 'Bem-vindo ao Jhaguar!',
-        html,
-      });
-
-      this.logger.log(`Welcome email sent to ${email}`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to send welcome email to ${email}: ${error.message}`);
-      return false;
-    }
+    const html = this.renderTemplate('welcome', {
+      firstName,
+      year: new Date().getFullYear(),
+    });
+    return this.sendEmail(email, 'Bem-vindo ao Jhaguar!', html);
   }
 }
